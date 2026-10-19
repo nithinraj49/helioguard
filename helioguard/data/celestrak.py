@@ -37,6 +37,7 @@ class TLE:
     line1: str
     line2: str
     epoch: datetime
+    norad_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -93,13 +94,21 @@ def parse_tle_history(text: str) -> list[TLE]:
             l1, l2 = lines[i], lines[i + 1]
             if len(l1) < 69 or len(l2) < 69:
                 raise ValueError(f"malformed TLE lines: {l1!r}")
-            out.append(TLE(name, l1, l2, _tle_epoch(l1)))
+            out.append(TLE(name, l1, l2, _tle_epoch(l1), int(l1[2:7])))
             name, i = "", i + 2
         elif lines[i].startswith(("1 ", "2 ")):
             raise ValueError(f"malformed TLE near: {lines[i]!r}")
         else:
             name, i = lines[i].strip(), i + 1
     return sorted(out, key=lambda t: t.epoch)
+
+
+def group_by_norad(history: list[TLE]) -> dict[int, list[TLE]]:
+    """Split a mixed history into per-object lists, each sorted by epoch."""
+    groups: dict[int, list[TLE]] = {}
+    for t in history:
+        groups.setdefault(t.norad_id, []).append(t)
+    return {k: sorted(v, key=lambda t: t.epoch) for k, v in groups.items()}
 
 
 def sgp4_altitude_km(tle: TLE) -> float:
