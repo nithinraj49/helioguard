@@ -3,7 +3,7 @@ name = "helioguard"
 version = "0.1.0"
 description = "Physics-verified storm decisions for satellites in Earth orbit"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2"]
+dependencies = ["pydantic>=2", "numpy", "pymsis>=0.13", "sgp4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -13,8 +13,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["helioguard", "verispace_engine"]
+packages = ["helioguard", "helioguard.data", "verispace_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --basetemp=.pytest_tmp"

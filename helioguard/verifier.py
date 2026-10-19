@@ -20,7 +20,7 @@ ACTIONS = {
 def _outcome(sc, scen, action):
     attitude, thrusting = ACTIONS[action]
     return simulate(sc, scen["alt_km"], attitude, scen["storm_multiplier"],
-                    scen["horizon_h"], thrusting=thrusting)
+                    scen["horizon_h"], thrusting=thrusting, density_fn=scen.get("density_fn"))
 
 
 def _score(out):
@@ -32,7 +32,8 @@ def _score(out):
 
 def feasible(sc, scen, action):
     if action == "raise_orbit":
-        return can_raise(sc, scen["alt_km"], "raise", scen["storm_multiplier"])
+        return can_raise(sc, scen["alt_km"], "raise", scen["storm_multiplier"],
+                         scen.get("density_fn"))
     return action in ACTIONS
 
 
@@ -60,7 +61,8 @@ class HelioGuardVerifier(VerifierBase):
 
     def _predict_decay(self, step, ctx):
         sc, scen = ctx
-        out = simulate(sc, scen["alt_km"], step["attitude"], scen["storm_multiplier"], step["hours"])
+        out = simulate(sc, scen["alt_km"], step["attitude"], scen["storm_multiplier"], step["hours"],
+                       density_fn=scen.get("density_fn"))
         true_loss = scen["alt_km"] - out["final_alt_km"]
         pred = step["altitude_loss_km"]
         ok = abs(pred - true_loss) <= self.tol * max(true_loss, 1e-6)
