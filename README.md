@@ -15,6 +15,26 @@ Solar data (SunPy / NOAA SWPC) + Fleet state
    -> Operator briefing (plain English) -> human approves
 ```
 
+## Phase 0 (done): setup and locked results
+Tooling: `pyproject.toml`, a virtual environment, and pytest. 8 tests in
+`tests/test_phase1_baseline.py` lock the Phase 1 results, so any physics change shows up as a failure.
+Spacecraft values are illustrative, not operator specifications.
+
+| Feb 2022 replay, 210 km, 48 h | Quiet atmosphere | Storm (density x1.5) |
+|---|---|---|
+| Raise orbit | Survives, about 243 km | Infeasible (drag 85.1 mN > 70 mN thrust); lost at hour 31.8 |
+| Edge-on safe mode | Survives, about 166 km | Lost at hour 35.3 (best available) |
+| Hold | Lost at hour 19.9 | Lost at hour 13.2 |
+
+Verifier traces on the storm: naive 0/4, physics-aware 4/4; GVPO group-centred rewards -0.5 and +0.5.
+
+Setup and tests:
+```
+python -m venv .venv
+.venv\Scripts\python -m pip install -e ".[dev]"
+.venv\Scripts\python -m pytest
+```
+
 ## Phase 1 (done): the physics verifier
 - `atmosphere.py`: reference density model plus storm multiplier and NOAA G-scale
 - `physics.py`: drag force, orbit decay under drag/thrust, raise feasibility
