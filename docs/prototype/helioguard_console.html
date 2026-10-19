@@ -1,0 +1,478 @@
+<!-- HelioGuard: storm response console (redesign) with user fleet input -->
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{--bg:#0F131B;--tile:#161C27;--tile2:#1D2533;--line:#283246;--ink:#ECEFF5;--muted:#97A1B5;--acc:#FF7A2F;--amber:#FFB020;--acc2:#2EC4A0;--bad:#FF4D5E;--hold:#8C93C9;
+  --rad:10px;--bw:1px;--fontH:"Barlow Condensed","Arial Narrow",sans-serif;--fontB:"Barlow","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--fontB);font-size:15px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding:14px 14px 40px}
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.t{background:var(--tile);border:1px solid var(--line);border-radius:var(--rad);padding:16px;min-width:0}
+@media(max-width:1000px){.bento{grid-template-columns:1fr 1fr}.t{grid-column:span 2!important}}
+h1,h2,h3{font-family:var(--fontH);margin:0;letter-spacing:.01em}
+h2{font-size:1.15rem;font-weight:700;text-transform:uppercase;margin-bottom:10px;color:#DCE2EE}
+h3{font-size:1rem;font-weight:700;text-transform:uppercase;margin-bottom:6px}
+p{margin:0 0 8px}.muted{color:var(--muted)}.small{font-size:.85rem}.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.s2{grid-column:span 2}.s3{grid-column:span 3}.s4{grid-column:span 4}.s6{grid-column:span 6}
+.alert{grid-column:span 6;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(90deg,#3A1A0E,#2A1A10 60%,#161C27);border-color:#6B3417;padding:12px 16px}
+.alert .dot{width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 0 rgba(255,122,47,.7);animation:pulse 1.6s infinite;flex:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,122,47,.7)}70%{box-shadow:0 0 0 12px rgba(255,122,47,0)}100%{box-shadow:0 0 0 0 rgba(255,122,47,0)}}
+@media(prefers-reduced-motion:reduce){.alert .dot{animation:none}}
+.alert .lvl{font-family:var(--fontH);font-size:1.6rem;font-weight:800;color:var(--acc);letter-spacing:.02em}
+.alert .facts{display:flex;gap:18px;flex-wrap:wrap;font-weight:600}
+.alert .facts span b{color:var(--amber)}
+.brand{margin-left:auto;font-family:var(--fontH);font-size:1rem;color:var(--muted);letter-spacing:.08em}
+.hero{grid-column:span 6;padding:0;position:relative;overflow:hidden;height:520px;background:#04070D}
+.hero canvas{display:block;cursor:grab;touch-action:none}.hero canvas:active{cursor:grabbing}
+.hero svg.flat{position:absolute;inset:0;width:100%;height:100%;display:none;background:#04070D}
+.hero.flatmode svg.flat{display:block}.hero.flatmode #three{visibility:hidden}
+.ov{position:absolute;background:rgba(15,19,27,.78);border:1px solid var(--line);border-radius:var(--rad);padding:10px 14px;backdrop-filter:blur(6px)}
+.ov.tl{left:14px;top:14px}.ov.tr{right:14px;top:14px;display:flex;gap:4px;padding:4px}
+.ov.bot{left:14px;right:14px;bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hc{font-family:var(--fontH);font-size:2.2rem;font-weight:800;line-height:1}
+.cd{font-family:var(--fontH);font-size:1.25rem;font-weight:700;color:var(--amber)}
+.seg button,.chip{font:inherit;font-weight:600;font-size:.86rem;border:1px solid var(--line);background:var(--tile2);color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer}
+.ov.tr button{border:0;background:transparent;color:var(--muted);border-radius:8px}
+.ov.tr button[aria-pressed="true"],.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:700;border:0;border-radius:8px;padding:9px 14px;background:var(--ink);color:var(--bg);cursor:pointer}
+.btn.acc{background:var(--acc);color:#1A0E06}.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+input[type=range]{accent-color:var(--acc)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.kpi .n{font-family:var(--fontH);font-size:3rem;font-weight:800;line-height:.95}
+.kpi.risk .n{color:var(--bad)}.kpi.saved .n{color:var(--acc2)}.kpi.launch .n{color:var(--amber);font-size:2.3rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{text-align:left;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.st{font-weight:700;font-size:.78rem;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.st.ok{background:rgba(46,196,160,.16);color:var(--acc2)}.st.lost{background:rgba(255,77,94,.16);color:var(--bad)}.st.warn{background:rgba(255,176,32,.16);color:var(--amber)}
+.act{font-weight:700}.why{color:var(--muted);font-size:.82rem}
+.brief{background:#0B0F16;border:1px solid var(--line);border-radius:8px;padding:12px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.78rem;white-space:pre-wrap;line-height:1.55;max-height:330px;overflow:auto}
+.fleet input,.fleet select{font:inherit;width:100%;background:var(--tile2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 6px}
+.fleet td{padding:4px}.fleet input[type=number]{min-width:64px}
+.rm{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:1.1rem}
+textarea{width:100%;min-height:90px;font-family:"JetBrains Mono",monospace;font-size:.8rem;background:var(--tile2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+label.f{display:block;font-weight:600;font-size:.85rem;margin:10px 0 4px}
+select.f{width:100%;font:inherit;background:var(--tile2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+details.hood{grid-column:span 6;background:var(--tile);border:1px solid var(--line);border-radius:var(--rad)}
+details.hood>summary{cursor:pointer;padding:16px;font-family:var(--fontH);font-size:1.3rem;font-weight:700;text-transform:uppercase;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.hood>summary::after{content:"Show";font-family:var(--fontB);font-size:.85rem;color:var(--muted);text-transform:none}
+details.hood[open]>summary::after{content:"Hide"}
+details.hood .inner{padding:0 12px 12px}
+.inner .t{background:var(--tile2)}.inner .cell,.inner .kv div,.inner .pnode{background:var(--tile)}
+.plain p{font-size:.88rem}
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0 12px}
+@media(max-width:700px){.pipe{grid-template-columns:1fr}}
+.pnode{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:.8rem}.pnode b{display:block}
+.pnode.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,122,47,.35)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.probs .prow{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin:6px 0;font-size:.84rem}
+.probs .opts{display:flex;height:22px;border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+.probs .opts span{display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#111;overflow:hidden;white-space:nowrap}
+.steps{list-style:none;padding:0;margin:10px 0 0}.steps li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:.88rem}
+.tag{font-weight:800;font-size:.72rem;padding:3px 8px;border-radius:999px;flex:none;height:fit-content}
+.pass{background:rgba(46,196,160,.2);color:var(--acc2)}.fail{background:rgba(255,77,94,.2);color:var(--bad)}
+.qgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}@media(max-width:700px){.qgrid{grid-template-columns:1fr}}
+.qgrid select{width:100%;font:inherit;background:var(--tile);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}@media(max-width:700px){.kv{grid-template-columns:1fr}}
+.kv div{border-radius:8px;padding:10px}.kv b{display:block;font-family:var(--fontH);font-size:1.5rem}
+pre.trace{background:#0B0F16;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:.76rem;max-height:150px;overflow:auto}
+.seg2{display:inline-flex;gap:4px;padding:3px;background:var(--tile);border-radius:999px;border:1px solid var(--line)}
+.seg2 button{font:inherit;font-size:.82rem;font-weight:600;border:0;background:transparent;color:var(--muted);padding:5px 10px;border-radius:999px;cursor:pointer}
+.seg2 button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.foot{grid-column:span 6;font-size:.8rem;color:var(--muted);background:transparent;border:0}
+svg text{font-family:var(--fontB)}.ax{stroke:var(--line)}.lab{fill:var(--muted)}.ink{fill:var(--ink)}
+
+</style>
+<body>
+<div class="wrap"><div class="bento">
+  <section class="t alert" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span class="lvl" id="aLvl">G1 STORM IN PROGRESS</span>
+    <div class="facts"><span>Atmospheric drag <b id="aDrag">+50%</b></span><span>Assets at risk <b id="aRisk">–</b></span><span>Next launch <b id="aLaunch">–</b></span></div><span class="brand">HELIOGUARD · STORM RESPONSE</span></section>
+
+  <section class="t hero" id="hero" aria-label="Fleet view">
+    <div id="three" style="position:absolute;inset:0"></div>
+    <svg class="flat" id="flat" viewBox="0 0 1000 520" role="img" aria-label="2D side view of the fleet"></svg>
+    <div class="ov tl"><div class="small muted">Mission time</div><div class="hc" id="clock">T+0.0 h</div><div class="cd" id="cd"></div></div>
+    <div class="ov tr" role="group" aria-label="View"><button data-view="3d" aria-pressed="true">3D fleet</button><button data-view="2d" aria-pressed="false">2D side view</button></div>
+    <div class="ov bot">
+      <button class="btn acc" id="play">Play 48 h</button>
+      <input type="range" id="time" min="0" max="48" step="0.1" value="0" style="flex:1;min-width:160px" aria-label="Mission time in hours">
+      <div class="seg2" role="group" aria-label="Plan shown"><button data-plan="rec" aria-pressed="true">Recommended plan</button><button data-plan="none" aria-pressed="false">No action</button></div>
+      <div class="legend"><span><i style="background:#2EC4A0"></i>Survives</span><span><i style="background:#FFB020"></i>Re-enters later</span><span><i style="background:#FF4D5E"></i>Lost</span><span>Altitude ×8</span></div>
+    </div>
+  </section>
+
+  <section class="t s2 kpi risk"><h2>Assets at risk</h2><div class="n" id="kRisk">–</div><p class="muted small" id="kRiskT"></p></section>
+  <section class="t s2 kpi saved"><h2>Saved by the plan</h2><div class="n" id="kSaved">–</div><p class="muted small" id="kSavedT"></p></section>
+  <section class="t s2 kpi launch"><h2 id="kLaunchH">Launch recommendation</h2><div class="n" id="kLaunch">–</div><p class="muted small" id="kLaunchT"></p></section>
+
+  <section class="t s4"><h2>Recommended actions</h2><table><thead><tr><th>Asset</th><th>Altitude</th><th>Action</th><th>Outcome in 48 h</th><th>Why (verified by physics)</th></tr></thead><tbody id="recs"></tbody></table></section>
+  <section class="t s2"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Operator briefing</h2><button class="btn ghost" id="copy" style="padding:5px 10px;font-size:.8rem">Copy</button></div>
+    <div class="brief" id="brief" style="margin-top:10px"></div><p class="small muted" style="margin-top:8px">HelioGuard recommends; the operator approves every action.</p></section>
+
+  <section class="t s4 fleet"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0">Your fleet</h2><span class="small muted" id="saveInfo"></span></div>
+    <p class="small muted" style="margin-top:6px">Edit any value and every result updates. Mass in kg, areas in m² (raising attitude / edge-on), thrust in mN.</p>
+    <table><thead><tr><th>Name</th><th>Altitude km</th><th>Mass</th><th>Area raise</th><th>Area edge</th><th>Thrust</th><th></th></tr></thead><tbody id="fleetRows"></tbody></table>
+    <div class="row"><button class="btn ghost" id="addRow">Add satellite</button><button class="btn ghost" id="resetFleet">Reset to sample fleet</button>
+      <details style="flex-basis:100%"><summary class="small" style="cursor:pointer;margin-top:6px">Paste a CSV instead</summary>
+        <p class="small muted" style="margin:6px 0">One satellite per line: name, altitude_km, mass_kg, area_raise_m2, area_edge_m2, thrust_mN</p>
+        <textarea id="csv" placeholder="Batch 12,210,260,4,1.5,70"></textarea><div class="row"><button class="btn" id="importCsv">Import</button><span class="small muted" id="csvMsg"></span></div></details></div></section>
+  <section class="t s2"><h2>Storm forecast</h2>
+    <div class="chips" id="storms"></div>
+    <p class="small muted" style="margin-top:8px">In the full product this comes live from NOAA's Space Weather Prediction Center.</p>
+    <h2 style="margin-top:14px">Planned launch</h2>
+    <label class="f" for="lName">Name</label><input id="lName" class="mono" style="width:100%;font:inherit;background:var(--tile2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px" value="L-31">
+    <label class="f" for="lIn">Launch in <span id="lInV"></span></label><input type="range" id="lIn" min="1" max="47" value="18" style="width:100%">
+    <label class="f" for="lAlt">Target deployment altitude <span id="lAltV"></span></label><input type="range" id="lAlt" min="200" max="320" value="210" style="width:100%">
+    <label class="f" for="lType">Spacecraft type</label><select class="f" id="lType"></select></section>
+
+  <section class="t s3"><h2>Altitude over 48 hours</h2><svg id="chart" role="img" aria-label="Altitude of each asset over time"></svg><div class="legend" id="chartLegend"></div></section>
+  <section class="t s3"><h2>What the physics says</h2><p id="finding" style="font-size:1.08rem;line-height:1.5"></p></section>
+
+  <details class="hood" id="hood"><summary>Under the hood: how HelioGuard decides</summary><div class="inner"><div class="bento">
+    <section class="t s4"><h3>1 · Training the decision AI (reinforcement-learning environment)</h3>
+      <div class="pipe" id="pipe"><div class="pnode"><b>1. Scenario</b>Random storm and altitude</div><div class="pnode"><b>2. Policy</b>Writes 8 decision traces</div><div class="pnode"><b>3. Physics verifier</b>Checks every step</div><div class="pnode"><b>4. Step rewards</b>Centred within the group</div><div class="pnode"><b>5. Update</b>Better steps become likelier</div></div>
+      <div class="row" style="margin-top:0"><button class="btn acc" id="train">Train 300 steps</button><button class="btn ghost" id="trainReset">Reset</button><span class="small muted" id="trainInfo"></span></div>
+      <div class="grid2" style="grid-template-columns:1.1fr 1fr;margin-top:10px"><div><span class="small muted">Verified-step score on held-out scenarios</span><svg id="trainChart"></svg></div>
+        <div><span class="small muted" id="probTitle"></span><div class="probs" id="probs"></div></div></div></section>
+    <section class="t s2 plain"><h3>In plain terms</h3><p><b>Policy</b>: the decision-maker in training; a language model in the full build, a tiny stand-in here so it trains live.</p><p><b>Environment</b>: creates practice storms and judges answers with physics: storm scale, thrust against drag, simulated survival.</p><p><b>Reward</b>: one point per verified reasoning step, compared within a group of attempts.</p></section>
+    <section class="t s4"><h3>Try being the policy (reference spacecraft, first fleet asset's altitude)</h3>
+      <div class="qgrid"><div><label class="f" for="q1">Storm level</label><select id="q1"><option>G0</option><option>G1</option><option>G2</option><option>G3</option><option>G4</option><option>G5</option></select></div>
+        <div><label class="f" for="q2">Can it raise orbit?</label><select id="q2"><option value="yes">Yes, thrust beats drag</option><option value="no">No, drag beats thrust</option></select></div>
+        <div><label class="f" for="q3">Response</label><select id="q3"><option value="raise">Raise orbit</option><option value="safe">Edge-on safe mode</option><option value="hold">Hold</option></select></div></div>
+      <div class="row"><button class="btn" id="verify">Verify</button><button class="btn ghost" id="sampleTrace">Show the AI's trace</button><span id="rew" style="margin-left:auto;font-family:var(--fontH);font-size:1.5rem;font-weight:800"></span></div>
+      <ul class="steps" id="steps"></ul><pre class="trace mono" id="trace" hidden></pre></section>
+    <section class="t s2 plain"><h3>Why step-by-step checks</h3><p>A single score can't say which decision was wrong. Checking each step with physics gives a precise, auditable reasoning trail, which operators and insurers can inspect afterwards.</p></section>
+    <section class="t s2"><h3>2 · Quantum optimisation</h3><p class="small muted">Six satellites need a protective pass; linked pairs share one ground window. Numbers show risk reduced.</p><svg id="qgraph" viewBox="0 0 300 270"></svg><p class="small" id="qdecode"></p></section>
+    <section class="t s4"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3 style="margin:0">QAOA over all 64 schedules (exact 6-qubit simulation)</h3>
+        <div class="seg2" role="group" aria-label="Depth"><button data-p="1" aria-pressed="true">p = 1</button><button data-p="2" aria-pressed="false">p = 2</button></div></div>
+      <div class="grid2" style="grid-template-columns:1fr 1fr auto;align-items:end"><div><label class="f" for="gam">Cost angle γ <span id="gamV" class="mono"></span></label><input type="range" id="gam" min="0" max="3.1416" step="0.01" value="0.4" style="width:100%"></div>
+        <div><label class="f" for="bet">Mixer angle β <span id="betV" class="mono"></span></label><input type="range" id="bet" min="0" max="1.5708" step="0.01" value="0.3" style="width:100%"></div><button class="btn acc" id="qopt">Optimise</button></div>
+      <svg id="qhist"></svg><div class="kv"><div><span class="small muted">Chance of best schedule</span><b id="qpb"></b><span class="small muted" id="qpr"></span></div><div><span class="small muted">Expected risk reduced</span><b id="qev"></b><span class="small muted" id="qem"></span></div><div><span class="small muted">Classical exact check</span><b id="qcl" class="mono"></b><span class="small muted">same answer, instantly</span></div></div></section>
+    <section class="t s4"><h3>3 · Hybrid quantum neural network: density correction</h3><svg id="circ"></svg>
+      <div class="row"><button class="btn acc" id="qtrain">Train both models</button><button class="btn ghost" id="qseed">New random start</button><span class="small muted" id="qinfo"></span></div>
+      <svg id="qchart"></svg><div class="kv"><div><span class="small muted">QNN test error</span><b id="qq">–</b></div><div><span class="small muted">Classical network, same size</span><b id="qm">–</b></div><div><span class="small muted">No model (mean)</span><b id="qb">–</b></div></div></section>
+    <section class="t s2 plain"><h3>In plain terms</h3><p><b>Task</b>: atmosphere models are wrong during storms; learn the correction from altitude, solar flux, storm index and time since onset.</p><p><b>Quantum part</b>: inputs become qubit rotations, pass two trainable entangling layers, and are measured; a small classical layer gives the correction.</p><p><b>Honest benchmark</b>: same data, same size, same optimiser. Results vary between runs; neither model is guaranteed to win.</p><p class="small muted">Synthetic data here; real satellite decay data in the full build.</p></section>
+  </div></div></details>
+
+  <section class="t foot">Illustrative physics: circular orbits, a reference atmosphere scaled by the storm's density multiplier, re-entry treated as unrecoverable below 150 km. The sample fleet uses invented values; the reference spacecraft is tuned to the qualitative behaviour of the February 2022 Starlink event and is not an operator specification. Your fleet is stored only for you. In the 3D view, altitudes are exaggerated eight times.</section>
+</div></div>
+
+<script>
+// ===== shared helpers =====
+const $=id=>document.getElementById(id);
+function mkRng(seed){let s=seed%2147483647||1;return()=>{s=(s*16807)%2147483647;return s/2147483647}}
+function gaussF(rng){return()=>Math.sqrt(-2*Math.log(rng()+1e-12))*Math.cos(2*Math.PI*rng())}
+// generic line chart: series=[{pts:[[x,y]],color,width,dash,opacity}]
+function lineChart(svg,series,o){const W=o.W||560,H=o.H||230,L=o.left||56,R=o.right||14,T=12,B=28,X=x=>L+(x-o.x0)/(o.x1-o.x0)*(W-L-R),Y=y=>T+(1-(Math.min(Math.max(y,o.y0),o.y1)-o.y0)/(o.y1-o.y0))*(H-T-B);
+  let s="";if(o.band)s+=`<rect x="${L}" y="${Y(o.band[1])}" width="${W-L-R}" height="${Y(o.band[0])-Y(o.band[1])}" style="fill:var(--bad);opacity:.16"/>`+(o.bandLabel?`<text x="${W-R-4}" y="${Y(o.band[1])+14}" text-anchor="end" font-size="11" font-weight="800" style="fill:var(--bad)">${o.bandLabel}</text>`:"");
+  for(const v of o.yt){s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" class="ax" stroke-width="1" opacity=".7"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" font-size="11" class="lab">${o.yfmt?o.yfmt(v):v}</text>`}
+  for(const v of o.xt)s+=`<text x="${X(v)}" y="${H-8}" text-anchor="middle" font-size="11" class="lab">${o.xfmt?o.xfmt(v):v}</text>`;
+  for(const se of series){const d=se.pts.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");
+    s+=`<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.width||2}" opacity="${se.opacity??1}" ${se.dash?`stroke-dasharray="${se.dash}"`:""}/>`}
+  if(o.cursor!==undefined)s+=`<line class="cursor" x1="${X(o.cursor)}" x2="${X(o.cursor)}" y1="${T}" y2="${H-B}" style="stroke:var(--ink)" stroke-width="1.5"/>`;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.innerHTML=s;svg._X=X}
+function moveCursor(svg,x){const c=svg.querySelector(".cursor");if(c&&svg._X){c.setAttribute("x1",svg._X(x));c.setAttribute("x2",svg._X(x))}}
+// ===== QAOA: exact statevector (n qubits) =====
+function qaoaProblem(V,E,PEN){const N=V.length,D=1<<N,cost=new Float64Array(D),value=new Float64Array(D),valid=[];
+  for(let k=0;k<D;k++){let v=0,c=0,bad=false;for(let i=0;i<N;i++)if(k>>i&1)v+=V[i];for(const[a,b]of E)if((k>>a&1)&&(k>>b&1)){c+=PEN;bad=true}cost[k]=c-v;value[k]=bad?0:v;valid[k]=!bad}
+  let best=0;for(let k=0;k<D;k++)if(cost[k]<cost[best])best=k;return{N,D,cost,value,valid,best,V,E}}
+function qaoaRun(P,gs,bs){const{N,D,cost}=P,re=new Float64Array(D).fill(1/Math.sqrt(D)),im=new Float64Array(D);
+  for(let l=0;l<gs.length;l++){const g=gs[l],cb=Math.cos(bs[l]),sb=Math.sin(bs[l]);
+    for(let k=0;k<D;k++){const ph=-g*cost[k],c=Math.cos(ph),s=Math.sin(ph),r=re[k],i=im[k];re[k]=r*c-i*s;im[k]=r*s+i*c}
+    for(let q=0;q<N;q++){const m=1<<q;for(let k=0;k<D;k++)if(!(k&m)){const j=k|m,ar=re[k],ai=im[k],br=re[j],bi=im[j];re[k]=cb*ar+sb*bi;im[k]=cb*ai-sb*br;re[j]=cb*br+sb*ai;im[j]=cb*bi-sb*ar}}}
+  const p=new Float64Array(D);for(let k=0;k<D;k++)p[k]=re[k]*re[k]+im[k]*im[k];return p}
+function qaoaOptimise(P,depth){const E=p=>{let e=0;for(let k=0;k<P.D;k++)e+=p[k]*P.cost[k];return e};let bE=1e9,bg=0,bb=0;
+  for(let g=0;g<=Math.PI;g+=Math.PI/60)for(let b=0;b<=Math.PI/2;b+=Math.PI/120){const e=E(qaoaRun(P,[g],[b]));if(e<bE){bE=e;bg=g;bb=b}}
+  if(depth===1)return{g:[bg],b:[bb]};let x=[bg,bg,bb,bb],e=E(qaoaRun(P,[x[0],x[1]],[x[2],x[3]])),step=.2;
+  for(let it=0;it<400&&step>1e-3;it++){let imp=false;for(let d=0;d<4;d++)for(const sg of[1,-1]){const y=x.slice();y[d]+=sg*step;const ey=E(qaoaRun(P,[y[0],y[1]],[y[2],y[3]]));if(ey<e){e=ey;x=y;imp=true}}if(!imp)step/=2}
+  return{g:[x[0],x[1]],b:[x[2],x[3]]}}
+const bits=(k,N)=>Array.from({length:N},(_,i)=>k>>i&1).join("");
+function qaoaHist(svg,P,p){const W=600,H=200,order=[...Array(P.D).keys()].sort((a,b)=>P.value[b]-P.value[a]||a-b),bw=(W-40)/P.D,mx=Math.max(...p,.05);
+  let s=`<line x1="30" x2="${W-10}" y1="${H-28}" y2="${H-28}" class="ax"/>`;
+  order.forEach((k,i)=>{const h=p[k]/mx*(H-50),x=30+i*bw,col=k===P.best?"var(--acc)":P.valid[k]?"var(--acc2)":"var(--line)";
+    s+=`<rect x="${x+.8}" y="${H-28-h}" width="${bw-1.6}" height="${h}" style="fill:${col};opacity:${k===P.best?1:.7}"><title>${bits(k,P.N)}: ${(p[k]*100).toFixed(1)}%</title></rect>`});
+  const yr=H-28-(1/P.D/mx)*(H-50);s+=`<line x1="30" x2="${W-10}" y1="${yr}" y2="${yr}" style="stroke:var(--bad)" stroke-dasharray="5 4"/><text x="${W-12}" y="${yr-5}" text-anchor="end" font-size="11" style="fill:var(--bad)">random guess</text>`;
+  s+=`<text x="30" y="${H-8}" font-size="11" class="lab">${P.D} schedules sorted by value (left = best) · accent: optimal · green: valid · grey: breaks a conflict</text>`;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.innerHTML=s}
+// ===== hybrid QNN (real-amplitude statevector: RY embedding, L x [RY + CNOT ring], <Z>, linear head) =====
+const NQ=4,DQ=16,QL=2;
+function ry(sv,q,t){const c=Math.cos(t/2),s=Math.sin(t/2),m=1<<q;for(let k=0;k<DQ;k++)if(!(k&m)){const j=k|m,a=sv[k],b=sv[j];sv[k]=c*a-s*b;sv[j]=s*a+c*b}}
+function cnot(sv,c,t){const mc=1<<c,mt=1<<t;for(let k=0;k<DQ;k++)if((k&mc)&&!(k&mt)){const j=k|mt,a=sv[k];sv[k]=sv[j];sv[j]=a}}
+function zexp(x,th){const sv=new Float64Array(DQ);sv[0]=1;for(let q=0;q<NQ;q++)ry(sv,q,x[q]);for(let l=0;l<QL;l++){for(let q=0;q<NQ;q++)ry(sv,q,th[l*NQ+q]);for(let q=0;q<NQ;q++)cnot(sv,q,(q+1)%NQ)}
+  const z=[0,0,0,0];for(let k=0;k<DQ;k++){const p=sv[k]*sv[k];for(let q=0;q<NQ;q++)z[q]+=(k>>q&1?-1:1)*p}return z}
+const qnnInit=r=>({th:Array.from({length:QL*NQ},()=>(r()-.5)*.2),w:Array.from({length:NQ},()=>(r()-.5)*.2),b:0});
+const qnnOut=(P,x)=>{const z=zexp(x,P.th);return z.reduce((s,v,i)=>s+v*P.w[i],P.b)};
+function qnnGrad(P,x,gy){const z=zexp(x,P.th),g={th:new Array(P.th.length).fill(0),w:z.map(v=>gy*v),b:gy};
+  for(let i=0;i<P.th.length;i++){const tp=P.th.slice(),tm=P.th.slice();tp[i]+=Math.PI/2;tm[i]-=Math.PI/2;const zp=zexp(x,tp),zm=zexp(x,tm);let d=0;for(let q=0;q<NQ;q++)d+=P.w[q]*(zp[q]-zm[q])/2;g.th[i]=gy*d}return g}
+const mlpInit=r=>({W1:Array.from({length:8},()=>r()-.5),b1:[0,0],W2:[r()-.5,r()-.5],b2:0});
+function mlpH(P,x){return[0,1].map(j=>Math.tanh(x.reduce((s,v,i)=>s+v*P.W1[j*4+i],P.b1[j])))}
+const mlpOut=(P,x)=>{const h=mlpH(P,x);return h[0]*P.W2[0]+h[1]*P.W2[1]+P.b2};
+function mlpGrad(P,x,gy){const h=mlpH(P,x),g={W1:new Array(8).fill(0),b1:[0,0],W2:h.map(v=>gy*v),b2:gy};for(let j=0;j<2;j++){const gh=gy*P.W2[j]*(1-h[j]*h[j]);g.b1[j]=gh;for(let i=0;i<4;i++)g.W1[j*4+i]=gh*x[i]}return g}
+function adam(P,G,st,lr){st.t=(st.t||0)+1;for(const k in G){const gk=Array.isArray(G[k])?G[k]:[G[k]];st[k]=st[k]||{m:gk.map(()=>0),v:gk.map(()=>0)};
+  gk.forEach((g,i)=>{const s=st[k];s.m[i]=.9*s.m[i]+.1*g;s.v[i]=.999*s.v[i]+.001*g*g;const u=lr*(s.m[i]/(1-.9**st.t))/(Math.sqrt(s.v[i]/(1-.999**st.t))+1e-8);if(Array.isArray(P[k]))P[k][i]-=u;else P[k]-=u})}}
+function addG(A,B){if(!A)return JSON.parse(JSON.stringify(B));for(const k in B){if(Array.isArray(B[k]))B[k].forEach((v,i)=>A[k][i]+=v);else A[k]+=B[k]}return A}
+function scaleG(A,s){for(const k in A){if(Array.isArray(A[k]))A[k]=A[k].map(v=>v*s);else A[k]*=s}return A}
+function circuitSVG(svg,labels){const W=600,H=200,y=q=>30+q*40;let s="";
+  for(let q=0;q<4;q++){s+=`<line x1="40" x2="520" y1="${y(q)}" y2="${y(q)}" class="ax" stroke-width="2"/><text x="10" y="${y(q)+4}" font-size="11" class="lab">q${q}</text>`;
+    s+=`<rect x="52" y="${y(q)-12}" width="62" height="24" rx="5" style="fill:var(--acc2);opacity:.9"/><text x="83" y="${y(q)+4}" text-anchor="middle" font-size="10" font-weight="800" fill="#111">RY(${labels[q]})</text>`;
+    for(let l=0;l<2;l++){const x=150+l*170;s+=`<rect x="${x}" y="${y(q)-12}" width="52" height="24" rx="5" style="fill:var(--acc)"/><text x="${x+26}" y="${y(q)+4}" text-anchor="middle" font-size="10" font-weight="800" fill="#111">RY(θ${l*4+q+1})</text>`}
+    s+=`<rect x="490" y="${y(q)-12}" width="30" height="24" rx="4" style="fill:var(--tile2);stroke:var(--ink)"/><path d="M496 ${y(q)+6} Q505 ${y(q)-8} 514 ${y(q)+6}" fill="none" style="stroke:var(--ink)"/><line x1="505" y1="${y(q)+6}" x2="511" y2="${y(q)-6}" style="stroke:var(--ink)"/>`}
+  for(let l=0;l<2;l++){const x0=225+l*170;for(let q=0;q<4;q++){const x=x0+q*14,t=(q+1)%4;s+=`<line x1="${x}" x2="${x}" y1="${y(q)}" y2="${y(t)}" style="stroke:var(--ink)" stroke-width="1.5"/><circle cx="${x}" cy="${y(q)}" r="4" style="fill:var(--ink)"/><circle cx="${x}" cy="${y(t)}" r="7" fill="none" style="stroke:var(--ink)" stroke-width="1.5"/><line x1="${x-7}" x2="${x+7}" y1="${y(t)}" y2="${y(t)}" style="stroke:var(--ink)" stroke-width="1.5"/>`}}
+  s+=`<text x="540" y="${y(1)+4}" font-size="11" class="ink" font-weight="800">⟨Z⟩ ×4</text><text x="540" y="${y(2)+4}" font-size="11" class="lab">→ classical</text><text x="540" y="${y(2)+18}" font-size="11" class="lab">linear head</text>`;
+  s+=`<text x="83" y="${H-6}" text-anchor="middle" font-size="10" class="lab">angle embedding</text><text x="290" y="${H-6}" text-anchor="middle" font-size="10" class="lab">2 trainable entangling layers (8 parameters)</text><text x="505" y="${H-6}" text-anchor="middle" font-size="10" class="lab">measure</text>`;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.innerHTML=s}
+// theme switcher
+function initTheme(){document.querySelectorAll("[data-theme]").forEach(b=>b.addEventListener("click",()=>{document.body.className=b.dataset.theme;
+  document.querySelectorAll("[data-theme]").forEach(x=>x.setAttribute("aria-pressed",x===b));window.dispatchEvent(new Event("themechange"))}))}
+
+// ===== physics =====
+const MU=3.986004418e14,RE=6378.137e3,REENTRY=150;
+const TABLE=[[150,2.070e-9,22.523],[180,5.464e-10,29.740],[200,2.789e-10,37.105],[250,7.248e-11,45.546],[300,2.418e-11,53.628],[350,9.518e-12,53.298],[400,3.725e-12,58.515]];
+const STORMS=[{n:"Quiet",kp:2,mult:1.0},{n:"G1 · Feb 2022 (×1.5)",kp:5,mult:1.5},{n:"G3 · Strong (×2.2)",kp:7,mult:2.2},{n:"G5 · Severe (×3)",kp:9,mult:3.0}];
+const ACTS={raise:{l:"Raise orbit",att:"raise",thr:true,c:"#FF7A2F"},safe:{l:"Edge-on safe mode",att:"edge",thr:false,c:"#2EC4A0"},hold:{l:"Hold",att:"raise",thr:false,c:"#8C93C9"}};
+const AK=["raise","safe","hold"],COLS=["#FF7A2F","#2EC4A0","#7FA8FF","#E36AA0","#FFB020","#B48CFF","#9FE870","#F2F2F2"];
+const SC={m:260,cd:2.2,area:{raise:4.0,edge:1.5},thrust:0.07};   // reference spacecraft (training and quiz)
+const rho=(h,m)=>{let b=TABLE[0];for(const r of TABLE)if(h>=r[0])b=r;return b[1]*Math.exp(-(h-b[0])/b[2])*m};
+const dragOf=(h,area,m,cd=2.2)=>{const v=Math.sqrt(MU/(RE+h*1e3));return .5*rho(h,m)*v*v*cd*area};
+const drag=(h,a,m)=>dragOf(h,a,m);
+const gScale=kp=>kp<5?"G0":"G"+Math.min(Math.floor(kp)-4,5);
+const canRaise=(h,m)=>SC.thrust>drag(h,SC.area.raise,m);
+const scOf=a=>({m:a.mass,cd:2.2,area:{raise:a.ar,edge:a.ae},thrust:a.th/1000});
+function simSC(sc,h0,act,m,stepS=60){const A=ACTS[act],area=sc.area[A.att];let a=RE+h0*1e3,lostAt=null;const alt=[h0],per=Math.round(360/stepS);
+  for(let s=1;s<=48*3600/stepS;s++){const h=(a-RE)/1e3;if(lostAt===null&&h<REENTRY)lostAt=s*stepS/3600;
+    if(lostAt===null){let f=-dragOf(h,area,m,sc.cd);if(A.thr)f+=sc.thrust;a+=2*f*Math.pow(a,1.5)/(sc.m*Math.sqrt(MU))*stepS}
+    if(s%per===0)alt.push(lostAt!==null?REENTRY:(a-RE)/1e3)}return{alt,lostAt,final:lostAt!==null?REENTRY:(a-RE)/1e3}}
+const simulate=(h0,act,m,stepS)=>simSC(SC,h0,act,m,stepS);
+const score=o=>o.lostAt!==null?[0,o.lostAt]:[1,o.final];
+const canRaiseSC=(sc,h,m)=>sc.thrust>dragOf(h,sc.area.raise,m,sc.cd);
+function bestOf(sc,h,m,res){let b=null;for(const a of AK){if(a==="raise"&&!canRaiseSC(sc,h,m))continue;if(!b){b=a;continue}const x=score(res[a]),y=score(res[b]);if(x[0]>y[0]||(x[0]===y[0]&&x[1]>y[1]))b=a}return b}
+const bestCache={};
+function bestFor(si,alt){const k=si+"_"+alt;if(bestCache[k])return bestCache[k];const m=STORMS[si].mult,res={};for(const a of AK)res[a]=simulate(alt,a,m,120);return bestCache[k]=bestOf(SC,alt,m,res)}
+const feasible=(a,alt,m)=>a!=="raise"||canRaise(alt,m);
+const minRaiseSC=(sc,m)=>{for(let h=150;h<=600;h+=.5)if(canRaiseSC(sc,h,m))return h;return null};
+
+// ===== state and fleet =====
+const SAMPLE=[{name:"Batch 12 (just deployed)",alt:210,mass:260,ar:4,ae:1.5,th:70},{name:"Batch 11 (raising)",alt:235,mass:260,ar:4,ae:1.5,th:70},
+  {name:"Shell 1 (operational)",alt:290,mass:260,ar:4,ae:1.5,th:70},{name:"EO-Sat 3",alt:260,mass:150,ar:2,ae:1,th:20}];
+let fleet=JSON.parse(JSON.stringify(SAMPLE));
+let st={storm:1,t:0,playing:false,view:"3d",plan:"rec",alt:210,launchIn:18,launchAlt:210,launchType:0,launchName:"L-31"};
+let OUT=[];
+function compute(){const m=STORMS[st.storm].mult;st.alt=Math.max(200,Math.min(300,Math.round(fleet[0]?.alt??210)));
+  OUT=fleet.map(a=>{const sc=scOf(a),res={};for(const k of AK)res[k]=simSC(sc,a.alt,k,m);const rec=bestOf(sc,a.alt,m,res);
+    return{a,sc,res,rec,feasible:canRaiseSC(sc,a.alt,m),dRaise:dragOf(a.alt,sc.area.raise,m),dEdge:dragOf(a.alt,sc.area.edge,m)}})}
+const planAct=o=>st.plan==="rec"?o.rec:"hold";
+const altAt=(o,t)=>{const r=o.res[planAct(o)].alt;return r[Math.min(r.length-1,Math.round(t*10))]};
+const lostAtOf=o=>o.res[planAct(o)].lostAt;
+const planTop=()=>Math.max(300,...OUT.map(o=>Math.max(...o.res[planAct(o)].alt)));
+const fmtH=h=>{const hh=Math.floor(h),mm=Math.round((h-hh)*60);return `${hh}:${String(mm).padStart(2,"0")} h`};
+
+// ===== 3D =====
+const host=$("three"),renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.appendChild(renderer.domElement);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,200);let camDist=5.6,yaw=.7,pitch=.3,drag0=null;
+const world=new THREE.Group();scene.add(world);scene.add(new THREE.AmbientLight(0x3a4170,.55));
+const sunDir=new THREE.Vector3(-1,.25,.35).normalize(),sunL=new THREE.DirectionalLight(0xfff1dd,1.35);sunL.position.copy(sunDir.clone().multiplyScalar(10));scene.add(sunL);
+{const g=new THREE.BufferGeometry(),n=1600,p=new Float32Array(n*3);for(let i=0;i<n;i++){const u=Math.random()*2-1,th=Math.random()*Math.PI*2,s=Math.sqrt(1-u*u),R0=60+Math.random()*40;p.set([s*Math.cos(th)*R0,u*R0,s*Math.sin(th)*R0],i*3)}
+ g.setAttribute("position",new THREE.BufferAttribute(p,3));scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xbfc6ff,size:.18,transparent:true,opacity:.7})))}
+function earthTexture(){const W=512,H=256,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d"),img=x.createImageData(W,H);
+  const rnd=(i,j)=>{const s=Math.sin(i*127.1+j*311.7)*43758.5453;return s-Math.floor(s)},sm=t=>t*t*(3-2*t);
+  const noise=(u,v)=>{const i=Math.floor(u),j=Math.floor(v),fu=sm(u-i),fv=sm(v-j),a=rnd(i%32,j),b=rnd((i+1)%32,j),cc=rnd(i%32,j+1),d=rnd((i+1)%32,j+1);return a+(b-a)*fu+(cc-a)*fv+(a-b-cc+d)*fu*fv};
+  for(let j=0;j<H;j++)for(let i=0;i<W;i++){const u=i/W*32,v=j/H*16;let n=0,amp=.5,f=1;for(let o=0;o<5;o++){n+=amp*noise(u*f,v*f);amp*=.5;f*=2}
+    const lat=Math.abs(j/H-.5)*2,land=n>.52,ice=lat>.86;let r,g,b;if(ice){r=225;g=235;b=245}else if(land){const k=(n-.52)*3;r=60+k*90;g=110+k*60;b=70+k*30}else{r=12+n*20;g=42+n*50;b=96+n*70}
+    img.data.set([r,g,b,255],(j*W+i)*4)}x.putImageData(img,0,0);return new THREE.CanvasTexture(c)}
+const earth=new THREE.Mesh(new THREE.SphereGeometry(1,64,48),new THREE.MeshPhongMaterial({map:earthTexture(),shininess:18,specular:0x335577}));world.add(earth);
+const glowMat=new THREE.ShaderMaterial({uniforms:{c:{value:new THREE.Color(0x56c8ff)},s:{value:1}},transparent:true,blending:THREE.AdditiveBlending,side:THREE.BackSide,depthWrite:false,
+  vertexShader:"varying vec3 n;void main(){n=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+  fragmentShader:"uniform vec3 c;uniform float s;varying vec3 n;void main(){float i=pow(.72-dot(n,vec3(0,0,1.)),3.);gl_FragColor=vec4(c,1.)*i*s;}"});
+const glow=new THREE.Mesh(new THREE.SphereGeometry(1.2,64,48),glowMat);world.add(glow);
+const shell=new THREE.Mesh(new THREE.SphereGeometry(1.15,64,48),new THREE.MeshBasicMaterial({color:0x56c8ff,transparent:true,opacity:.07,depthWrite:false}));world.add(shell);
+function sprite(color,size){const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d"),g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,"rgba(255,255,255,1)");g.addColorStop(.25,color);g.addColorStop(1,"rgba(0,0,0,0)");x.fillStyle=g;x.fillRect(0,0,128,128);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),blending:THREE.AdditiveBlending,depthWrite:false}));s.scale.set(size,size,1);return s}
+const sun=sprite("rgba(255,138,61,.9)",7);sun.position.copy(sunDir.clone().multiplyScalar(26));scene.add(sun);
+const NP=900,pg=new THREE.BufferGeometry(),pp=new Float32Array(NP*3),pphase=Float32Array.from({length:NP},()=>Math.random());pg.setAttribute("position",new THREE.BufferAttribute(pp,3));
+const pmat=new THREE.PointsMaterial({color:0xff9a52,size:.07,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false});scene.add(new THREE.Points(pg,pmat));
+const perp1=new THREE.Vector3(0,1,0).cross(sunDir).normalize(),perp2=sunDir.clone().cross(perp1).normalize(),poff=Array.from({length:NP},()=>[(Math.random()-.5)*2.4,(Math.random()-.5)*2.4]);
+const ringPts=[];for(let i=0;i<128;i++){const a=i/128*Math.PI*2;ringPts.push(new THREE.Vector3(Math.cos(a),0,Math.sin(a)))}
+let assets3d=[];
+function build3D(){for(const g of assets3d)world.remove(g.group);assets3d=OUT.map((o,i)=>{const group=new THREE.Group();group.rotation.x=.35+i*.22;group.rotation.y=i*.7;world.add(group);
+  const mat=new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.45}),ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(ringPts),mat);group.add(ring);
+  const sats=[];for(let k=0;k<6;k++){const m=new THREE.Mesh(new THREE.BoxGeometry(.035,.012,.06),new THREE.MeshBasicMaterial({color:0xffffff}));m.add(sprite("rgba(255,255,255,.6)",.14));group.add(m);sats.push(m)}
+  return{group,ring,mat,sats,phase:i*1.3}})}
+const vr=km=>1+km/6378*8;
+renderer.domElement.addEventListener("pointerdown",e=>{drag0=[e.clientX,e.clientY,yaw,pitch];renderer.domElement.setPointerCapture(e.pointerId)});
+renderer.domElement.addEventListener("pointermove",e=>{if(!drag0)return;yaw=drag0[2]+(e.clientX-drag0[0])*.006;pitch=Math.max(-1.2,Math.min(1.2,drag0[3]+(e.clientY-drag0[1])*.006))});
+renderer.domElement.addEventListener("pointerup",()=>drag0=null);
+renderer.domElement.addEventListener("wheel",e=>{e.preventDefault();camDist=Math.max(3,Math.min(12,camDist*(1+e.deltaY*.001)))},{passive:false});
+function resize(){const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
+new ResizeObserver(resize).observe(host);resize();
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;let last=performance.now(),clockT=0;
+function statusAt(o,t){const L=lostAtOf(o);return L!==null&&t>=L?"lost":L!==null?"later":"ok"}
+const SCOL={ok:0x2ec4a0,later:0xffb020,lost:0xff4d5e};
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;clockT+=dt;
+  if(st.playing){st.t=Math.min(48,st.t+dt*4);if(st.t>=48)st.playing=false;syncTime()}
+  if(st.view==="3d"){if(!drag0&&!reduce)yaw+=dt*.035;camera.position.set(Math.sin(yaw)*Math.cos(pitch)*camDist,Math.sin(pitch)*camDist,Math.cos(yaw)*Math.cos(pitch)*camDist);camera.lookAt(0,0,0);earth.rotation.y+=dt*.05;
+    const m=STORMS[st.storm].mult,sw=m-1;glowMat.uniforms.s.value=.9+sw*.9;glow.scale.setScalar(1+sw*.05);shell.scale.setScalar(1+sw*.045);shell.material.opacity=.06+sw*.05;
+    const str=Math.min(1,sw/2+.08*(st.storm>0));pmat.opacity=st.storm===0?.06:.35+.5*str;
+    for(let i=0;i<NP;i++){const ph=(pphase[i]+clockT*(reduce?.02:.12)*(.6+str))%1,d=26*(1-ph)+1.4*ph;const v=sunDir.clone().multiplyScalar(d).addScaledVector(perp1,poff[i][0]*(.4+ph*1.6)).addScaledVector(perp2,poff[i][1]*(.4+ph*1.6));pp.set([v.x,v.y,v.z],i*3)}
+    pg.attributes.position.needsUpdate=true;
+    assets3d.forEach((g,i)=>{const o=OUT[i];if(!o)return;const h=altAt(o,st.t),stt=statusAt(o,st.t),L=lostAtOf(o),r=vr(Math.max(h,REENTRY));g.ring.scale.setScalar(r);g.mat.color.set(SCOL[stt]);g.mat.opacity=stt==="lost"?.15:.5;
+      g.phase+=dt*(reduce?.1:.35)*(1.1-i*.05);g.sats.forEach((s,k)=>{const a=g.phase+k*.06;s.position.set(Math.cos(a)*r,0,Math.sin(a)*r);s.lookAt(0,0,0);const burn=L!==null&&st.t>=L&&st.t<L+1.5;s.visible=stt!=="lost"||burn;
+        const c=burn?0xff7a3d:0xffffff;s.material.color.set(c);s.children[0].material.color.set(c)})});
+    renderer.render(scene,camera)}
+  requestAnimationFrame(frame)}
+
+// ===== 2D side view =====
+function drawFlat(){const H=520,W=Math.max(800,Math.round(H*(host.clientWidth||1000)/(host.clientHeight||520))),top=Math.ceil((planTop()+10)/50)*50,Y=a=>392-(a-130)/(top-130)*262,m=STORMS[st.storm].mult,sw=m-1,n=Math.max(OUT.length,1),gap=(W-200)/n;
+  let s=`<defs><linearGradient id="atm" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#56C8FF" stop-opacity="${(.5+sw*.2).toFixed(2)}"/><stop offset="${Math.min(.9,.3+sw*.18).toFixed(2)}" stop-color="#56C8FF" stop-opacity=".1"/><stop offset="1" stop-color="#56C8FF" stop-opacity="0"/></linearGradient></defs>`;
+  s+=`<rect width="${W}" height="${H}" fill="#04070D"/><rect x="0" y="${Y(top)}" width="${W}" height="${Y(130)-Y(top)}" fill="url(#atm)"/><rect x="0" y="${Y(150)}" width="${W}" height="${Y(130)-Y(150)}" fill="#FF4D5E" opacity=".22"/>`;
+  s+=`<text x="${W-16}" y="${Y(150)+18}" text-anchor="end" font-size="13" fill="#FF8C98" font-weight="700">re-entry zone below 150 km</text><path d="M0 ${H} L0 ${Y(130)+16} Q${W/2} ${Y(130)-22} ${W} ${Y(130)+16} L${W} ${H} Z" fill="#163B6E"/>`;
+  for(let a=150;a<=top;a+=50)s+=`<line x1="80" x2="${W-10}" y1="${Y(a)}" y2="${Y(a)}" stroke="#fff" stroke-opacity=".07"/><text x="70" y="${Y(a)+4}" text-anchor="end" font-size="12" fill="#97A1B5">${a} km</text>`;
+  OUT.forEach((o,i)=>{const x=140+gap*(i+.5),h=altAt(o,st.t),stt=statusAt(o,st.t),c=stt==="ok"?"#2EC4A0":stt==="later"?"#FFB020":"#FF4D5E";
+    s+=`<line x1="${x}" x2="${x}" y1="${Y(o.a.alt)}" y2="${Y(Math.max(h,130))}" stroke="${c}" stroke-width="3" stroke-dasharray="4 4" opacity=".8"/><circle cx="${x}" cy="${Y(o.a.alt)}" r="4" fill="${c}" opacity=".6"/>`;
+    s+=stt==="lost"?`<circle cx="${x}" cy="${Y(150)+34}" r="15" fill="none" stroke="#FF4D5E" stroke-width="3"/><text x="${x}" y="${Y(150)+41}" text-anchor="middle" font-size="18" fill="#FF4D5E">✕</text>`
+      :`<rect x="${x-16}" y="${Y(h)-6}" width="32" height="12" rx="2" fill="#fff"/><rect x="${x-30}" y="${Y(h)-3}" width="12" height="6" fill="#7FA8FF"/><rect x="${x+18}" y="${Y(h)-3}" width="12" height="6" fill="#7FA8FF"/>`;
+    s+=`<text x="${x}" y="${Y(top)-26}" text-anchor="middle" font-size="13" font-weight="700" fill="#ECEFF5">${o.a.name.slice(0,22)}</text><text x="${x}" y="${Y(top)-10}" text-anchor="middle" font-size="12" fill="${c}">${ACTS[planAct(o)].l} · ${stt==="lost"?"lost":h.toFixed(0)+" km"}</text>`});
+  $("flat").setAttribute("viewBox",`0 0 ${W} ${H}`);$("flat").innerHTML=s}
+
+// ===== decision outputs =====
+function why(o){const m=STORMS[st.storm].mult,th=o.sc.thrust*1e3,dr=o.dRaise*1e3,de=o.dEdge*1e3,r=o.res,rec=o.rec;
+  if(rec==="raise")return `Raising works: thrust ${th.toFixed(0)} mN beats drag ${dr.toFixed(0)} mN.`;
+  const life=r.safe.lostAt!==null?`safe mode keeps it up until hour ${r.safe.lostAt.toFixed(1)} vs ${r.hold.lostAt!==null?r.hold.lostAt.toFixed(1):"48+"} on hold`:`safe mode cuts drag to ${de.toFixed(0)} mN and it survives`;
+  return `Raising impossible: drag ${dr.toFixed(0)} mN beats thrust ${th.toFixed(0)} mN; ${life}.`}
+function outcome(o,act){const L=o.res[act].lostAt;return L!==null?{cls:"lost",t:`Re-enters at hour ${L.toFixed(1)}`}:{cls:"ok",t:`Survives at ${o.res[act].final.toFixed(0)} km`}}
+function launchRec(){const ref=fleet[st.launchType]||fleet[0];if(!ref)return null;const sc=scOf(ref),m=STORMS[st.storm].mult,mr=minRaiseSC(sc,m);
+  const safe=mr!==null&&mr<=400?Math.ceil(mr/5)*5+5:null,res={};for(const k of AK)res[k]=simSC(sc,st.launchAlt,k,m);const b=bestOf(sc,st.launchAlt,m,res),oc=res[b];
+  return{safe,mr,b,oc,ok:canRaiseSC(sc,st.launchAlt,m)&&oc.lostAt===null}}
+function render(){compute();const m=STORMS[st.storm].mult,g=gScale(STORMS[st.storm].kp);
+  const risk=OUT.filter(o=>o.res.hold.lostAt!==null),saved=OUT.filter(o=>o.res.hold.lostAt!==null&&o.res[o.rec].lostAt===null),stillLost=OUT.filter(o=>o.res[o.rec].lostAt!==null);
+  $("aLvl").textContent=g==="G0"?"QUIET CONDITIONS":`${g} STORM IN PROGRESS`;$("aDrag").textContent=m===1?"normal":`+${Math.round((m-1)*100)}%`;$("aRisk").textContent=`${risk.length} of ${OUT.length}`;
+  $("kRisk").textContent=risk.length;$("kRiskT").textContent=risk.length?`would re-enter within 48 h with no action: ${risk.map(o=>o.a.name).join(", ")}`:"no asset re-enters within 48 h, even with no action";
+  $("kSaved").textContent=saved.length;
+  const gained=stillLost.filter(o=>o.res.hold.lostAt!==null).map(o=>`${o.a.name} +${(o.res[o.rec].lostAt-o.res.hold.lostAt).toFixed(1)} h`);
+  $("kSavedT").textContent=(saved.length?`kept in orbit: ${saved.map(o=>o.a.name).join(", ")}. `:"")+(gained.length?`Cannot be saved, but time gained: ${gained.join(", ")}.`:saved.length?"":"nothing at risk to save");
+  const L=launchRec();
+  if(L){$("kLaunchH").textContent=`Launch ${st.launchName}`;
+    if(L.ok){$("kLaunch").textContent="GO";$("kLaunchT").textContent=`Deploying at ${st.launchAlt} km is safe in this storm (raising works from ${L.mr.toFixed(0)} km).`}
+    else if(L.safe){$("kLaunch").textContent=`≥ ${L.safe} km`;$("kLaunchT").textContent=`At ${st.launchAlt} km the batch ${L.oc.lostAt!==null?`would re-enter at hour ${L.oc.lostAt.toFixed(1)}`:"could not raise orbit"}. Deploy at ${L.safe} km or above, or delay until the storm passes.`}
+    else{$("kLaunch").textContent="DELAY";$("kLaunchT").textContent="No practical deployment altitude lets this spacecraft out-thrust the storm's drag. Delay the launch."}}
+  $("recs").innerHTML=OUT.map((o,i)=>{const oc=outcome(o,o.rec),ocH=outcome(o,"hold");return `<tr><td><b style="color:${COLS[i%COLS.length]}">●</b> ${o.a.name}</td><td>${o.a.alt} km</td><td class="act">${ACTS[o.rec].l}</td>
+    <td><span class="st ${oc.cls}">${oc.t}</span><div class="why" style="margin-top:4px">No action: ${ocH.t.toLowerCase()}</div></td><td class="why">${why(o)}</td></tr>`}).join("")||`<tr><td colspan="5" class="muted">Add a satellite to your fleet below.</td></tr>`;
+  const lines=[`STORM BRIEFING · ${STORMS[st.storm].n} · drag x${m}`,""];
+  OUT.forEach((o,i)=>{const oc=outcome(o,o.rec);lines.push(`${i+1}. ${o.a.name} (${o.a.alt} km)`,`   ACTION: ${ACTS[o.rec].l.toUpperCase()}`,`   ${oc.t}`,`   verified: ${why(o)}`,"")});
+  if(L)lines.push(`LAUNCH ${st.launchName} (in ${st.launchIn} h, target ${st.launchAlt} km):`,`   ${L.ok?"GO at target altitude":L.safe?`deploy at ${L.safe} km or above, or delay`:"DELAY until the storm subsides"}`,"");
+  lines.push("Recommendations only. Operator approval required.");$("brief").textContent=lines.join("\n");
+  const all=OUT.length&&OUT.every(o=>o.res[o.rec].lostAt===null);
+  $("finding").innerHTML=!OUT.length?"Add satellites to see what the physics says.":all?`<b style="color:var(--acc2)">Every asset survives the next 48 hours</b> with the recommended plan.${saved.length?` Without it, ${saved.length} would be lost.`:""}`
+    :`<b style="color:var(--bad)">${stillLost.length} asset${stillLost.length>1?"s":""} cannot be saved once deployed this low</b>; the best response only buys time. The decisive choice is the one before launch, which is why HelioGuard checks the deployment altitude of ${st.launchName}.`;
+  $("lInV").textContent=st.launchIn+" h";$("lAltV").textContent=st.launchAlt+" km";
+  $("lType").innerHTML=fleet.map((a,i)=>`<option value="${i}" ${i===st.launchType?"selected":""}>Same as ${a.name}</option>`).join("");
+  document.querySelectorAll("#storms .chip").forEach((b,i)=>b.setAttribute("aria-pressed",i===st.storm));
+  build3D();chart();syncTime();if(typeof showProbs==="function")showProbs()}
+function chart(){const top=Math.ceil((planTop()+10)/50)*50;
+  lineChart($("chart"),OUT.map((o,i)=>({pts:o.res[planAct(o)].alt.map((a,k)=>[k/10,a]),color:COLS[i%COLS.length],width:2.6})),{x0:0,x1:48,y0:130,y1:top,yt:[150,200,250,300].filter(v=>v<=top),xt:[0,12,24,36,48],xfmt:v=>v+" h",yfmt:v=>v+" km",band:[130,150],bandLabel:"re-entry",cursor:st.t,left:62});
+  $("chartLegend").innerHTML=OUT.map((o,i)=>`<span><i style="background:${COLS[i%COLS.length]}"></i>${o.a.name}</span>`).join("")+`<span>Plan shown: ${st.plan==="rec"?"recommended":"no action"}</span>`}
+function syncTime(){$("time").value=st.t;$("clock").textContent=`T+${st.t.toFixed(1)} h`;const left=st.launchIn-st.t;
+  $("cd").textContent=left>0?`${st.launchName} launches in ${fmtH(left)}`:`${st.launchName} launched`;$("aLaunch").textContent=left>0?`${st.launchName} in ${fmtH(left)}`:`${st.launchName} launched`;
+  moveCursor($("chart"),st.t);if(st.view==="2d")drawFlat();$("play").textContent=st.playing?"Pause":(st.t>=48?"Replay 48 h":"Play 48 h")}
+
+// ===== fleet editor + storage =====
+const FIELDS=[["name","text"],["alt","number"],["mass","number"],["ar","number"],["ae","number"],["th","number"]];
+function fleetTable(){$("fleetRows").innerHTML=fleet.map((a,i)=>`<tr>${FIELDS.map(([k,t])=>`<td><input type="${t}" data-i="${i}" data-k="${k}" value="${a[k]}" ${t==="number"?'step="any" min="0"':""} aria-label="${k} of ${a.name}"></td>`).join("")}<td><button class="rm" data-rm="${i}" aria-label="Remove ${a.name}">✕</button></td></tr>`).join("")}
+function validate(a){a.alt=Math.max(160,Math.min(600,+a.alt||210));a.mass=Math.max(1,+a.mass||100);a.ar=Math.max(.01,+a.ar||1);a.ae=Math.max(.01,+a.ae||1);a.th=Math.max(0,+a.th||0);return a}
+let saveT;async function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{try{if(window.storage){await window.storage.set("helioguard-fleet",JSON.stringify({fleet,st:{storm:st.storm,launchIn:st.launchIn,launchAlt:st.launchAlt,launchName:st.launchName}}),false);$("saveInfo").textContent="Saved for next time"}else $("saveInfo").textContent="Saving unavailable here"}catch(e){$("saveInfo").textContent="Not saved"}},500)}
+async function load(){try{if(!window.storage)return;const r=await window.storage.get("helioguard-fleet",false);if(r&&r.value){const d=JSON.parse(r.value);if(Array.isArray(d.fleet)&&d.fleet.length)fleet=d.fleet.map(validate);Object.assign(st,d.st||{});$("saveInfo").textContent="Loaded your saved fleet"}}catch(e){}}
+$("fleetRows").addEventListener("change",e=>{const el=e.target;if(!el.dataset.k)return;const a=fleet[+el.dataset.i];a[el.dataset.k]=el.dataset.k==="name"?(el.value.trim()||"Satellite"):+el.value;validate(a);fleetTable();render();save()});
+$("fleetRows").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(!b)return;fleet.splice(+b.dataset.rm,1);if(st.launchType>=fleet.length)st.launchType=0;fleetTable();render();save()});
+$("addRow").addEventListener("click",()=>{if(fleet.length>=8)return;fleet.push({name:`Satellite ${fleet.length+1}`,alt:250,mass:260,ar:4,ae:1.5,th:70});fleetTable();render();save()});
+$("resetFleet").addEventListener("click",()=>{fleet=JSON.parse(JSON.stringify(SAMPLE));st.launchType=0;fleetTable();render();save()});
+$("importCsv").addEventListener("click",()=>{const rows=$("csv").value.split(/\n/).map(l=>l.trim()).filter(Boolean).map(l=>l.split(",").map(x=>x.trim()));const out=[];
+  for(const r of rows){if(r.length<6||isNaN(+r[1]))continue;out.push(validate({name:r[0],alt:+r[1],mass:+r[2],ar:+r[3],ae:+r[4],th:+r[5]}))}
+  if(!out.length){$("csvMsg").textContent="No valid lines found. Check the column order.";return}fleet=out.slice(0,8);st.launchType=0;$("csvMsg").textContent=`Imported ${fleet.length} satellite${fleet.length>1?"s":""}.`;fleetTable();render();save()});
+
+// ===== controls =====
+$("storms").innerHTML=STORMS.map((s,i)=>`<button class="chip" data-i="${i}">${s.n}</button>`).join("");
+$("storms").addEventListener("click",e=>{const b=e.target.closest(".chip");if(b){st.storm=+b.dataset.i;render();save()}});
+$("time").addEventListener("input",e=>{st.t=+e.target.value;st.playing=false;syncTime()});
+$("play").addEventListener("click",()=>{if(st.t>=48)st.t=0;st.playing=!st.playing;syncTime()});
+document.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{st.plan=b.dataset.plan;document.querySelectorAll("[data-plan]").forEach(x=>x.setAttribute("aria-pressed",x===b));chart();syncTime()}));
+document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>{st.view=b.dataset.view;document.querySelectorAll("[data-view]").forEach(x=>x.setAttribute("aria-pressed",x===b));$("hero").classList.toggle("flatmode",st.view==="2d");if(st.view==="2d")drawFlat();else resize()}));
+$("lIn").addEventListener("input",e=>{st.launchIn=+e.target.value;render();save()});$("lAlt").addEventListener("input",e=>{st.launchAlt=+e.target.value;render();save()});
+$("lType").addEventListener("change",e=>{st.launchType=+e.target.value;render()});$("lName").addEventListener("change",e=>{st.launchName=e.target.value.trim()||"L-31";render();save()});
+$("copy").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("brief").textContent);$("copy").textContent="Copied"}catch(e){$("copy").textContent="Select and copy"}setTimeout(()=>$("copy").textContent="Copy",1500)});
+
+// ===== RL environment (toy policy, real verifier) =====
+const DEC=[{name:"Storm level",opts:["G0","G1","G2","G3","G4","G5"]},{name:"Raise feasible?",opts:["yes","no"]},{name:"Action",opts:AK}];
+const OPTC=["#7FA8FF","#2EC4A0","#FFD166","#FF8A3D","#E36AA0","#B48CFF"];
+const feats=(si,alt)=>{const x=[0,0,0,0];x[si]=1;const an=(alt-250)/50;return[...x,an,...x.map(v=>v*an),1]};
+const newPolicy=()=>DEC.map(d=>d.opts.map(()=>new Array(10).fill(0)));
+function probsOf(W,d,x){const z=W[d].map(w=>w.reduce((s,wi,i)=>s+wi*x[i],0)),m=Math.max(...z),e=z.map(v=>Math.exp(v-m)),S=e.reduce((a,b)=>a+b);return e.map(v=>v/S)}
+function vStep(d,c,si,alt){const s=STORMS[si];if(d===0)return+(DEC[0].opts[c]===gScale(s.kp));if(d===1)return+((c===0)===canRaise(alt,s.mult));const a=AK[c];if(!feasible(a,alt,s.mult))return 0;return+(a===bestFor(si,alt))}
+const sampleIdx=(p,r)=>{let c=0;for(let i=0;i<p.length;i++){c+=p[i];if(r<c)return i}return p.length-1};
+let POL=newPolicy(),rlRng=mkRng(42),curve=[],steps=0,training=false;
+const EVAL=[];for(let si=0;si<4;si++)for(const alt of[205,215,225,235,245,265,285])EVAL.push([si,alt]);
+function evalPol(){let t=0;for(const[si,alt]of EVAL){const x=feats(si,alt);for(let d=0;d<3;d++)probsOf(POL,d,x).forEach((p,c)=>t+=p*vStep(d,c,si,alt))}return t/(EVAL.length*3)}
+function trainStep(G=8,B=4,lr=.6){for(let b=0;b<B;b++){const si=Math.floor(rlRng()*4),alt=200+Math.floor(rlRng()*101),x=feats(si,alt),P=DEC.map((_,d)=>probsOf(POL,d,x)),tr=[];
+  for(let g=0;g<G;g++){const ch=DEC.map((_,d)=>sampleIdx(P[d],rlRng()));tr.push({ch,r:ch.map((c,d)=>vStep(d,c,si,alt))})}
+  for(let d=0;d<3;d++){const mean=tr.reduce((s,t)=>s+t.r[d],0)/G;for(const t of tr){const A=t.r[d]-mean;if(!A)continue;
+    for(let o=0;o<DEC[d].opts.length;o++){const gr=(o===t.ch[d]?1:0)-P[d][o];for(let i=0;i<10;i++)POL[d][o][i]+=lr*A*gr*x[i]/G}}}}steps++}
+function drawCurve(){lineChart($("trainChart"),[{pts:curve,color:"var(--acc)",width:3}],{W:360,H:190,x0:0,x1:300,y0:0,y1:1,yt:[0,.33,.5,1],xt:[0,100,200,300],yfmt:v=>v.toFixed(2),left:40});
+  $("trainInfo").textContent=`${steps} steps · score ${curve.length?curve.at(-1)[1].toFixed(2):"–"}`}
+function showProbs(){const x=feats(st.storm,st.alt);$("probTitle").textContent=`Policy now, for ${STORMS[st.storm].n} at ${st.alt} km`;
+  $("probs").innerHTML=DEC.map((d,di)=>{const p=probsOf(POL,di,x);return `<div class="row"><span>${d.name}</span><div class="opts">${p.map((v,i)=>`<span style="flex-grow:${Math.max(v,.001)};background:${OPTC[i]}" title="${d.opts[i]} ${(v*100).toFixed(0)}%">${v>.12?d.opts[i]:""}</span>`).join("")}</div></div>`}).join("")}
+function animatePipe(){let i=0;const nodes=document.querySelectorAll("#pipe .pnode");return setInterval(()=>{nodes.forEach((n,k)=>n.classList.toggle("on",k===i%5));i++},160)}
+$("train").addEventListener("click",()=>{if(training)return;training=true;const pi=animatePipe();if(!curve.length)curve.push([0,evalPol()]);
+  const target=steps+300;(function chunk(){for(let k=0;k<10&&steps<target;k++)trainStep();curve.push([Math.min(steps,300),evalPol()]);drawCurve();showProbs();
+    if(steps<target&&steps<300)requestAnimationFrame(chunk);else{training=false;clearInterval(pi);document.querySelectorAll("#pipe .pnode").forEach(n=>n.classList.remove("on"))}})()});
+$("trainReset").addEventListener("click",()=>{if(training)return;POL=newPolicy();rlRng=mkRng(Math.floor(Math.random()*1e6));curve=[[0,evalPol()]];steps=0;drawCurve();showProbs()});
+$("verify").addEventListener("click",()=>{const s=STORMS[st.storm],m=s.mult,b=bestFor(st.storm,st.alt),g=$("q1").value,f=$("q2").value==="yes",a=$("q3").value,tg=gScale(s.kp),tf=canRaise(st.alt,m);
+  const L=[[g===tg,`Storm level: you said ${g}; NOAA's scale gives ${tg} for Kp ${s.kp}.`],[f===tf,`Raising: thrust 70 mN vs drag ${(drag(st.alt,SC.area.raise,m)*1e3).toFixed(0)} mN, so it is ${tf?"possible":"not possible"}.`],
+    [feasible(a,st.alt,m)&&a===b,!feasible(a,st.alt,m)?`${ACTS[a].l} is physically impossible here.`:`You chose ${ACTS[a].l.toLowerCase()}; physics-optimal is ${ACTS[b].l.toLowerCase()}.`]];
+  $("steps").innerHTML=L.map(([ok,w])=>`<li><span class="tag ${ok?"pass":"fail"}">${ok?"PASS":"FAIL"}</span><span>${w}</span></li>`).join("");$("rew").textContent=(L.filter(x=>x[0]).length/3).toFixed(2)});
+$("sampleTrace").addEventListener("click",()=>{const x=feats(st.storm,st.alt),ch=DEC.map((_,d)=>{const p=probsOf(POL,d,x);return p.indexOf(Math.max(...p))}),r=ch.map((c,d)=>vStep(d,c,st.storm,st.alt));
+  const tr=[{type:"classify_storm",g_scale:DEC[0].opts[ch[0]]},{type:"check_feasibility",action:"raise_orbit",feasible:ch[1]===0},{type:"choose_action",action:AK[ch[2]]}];
+  $("trace").hidden=false;$("trace").textContent=`// AI decision trace (${steps} training steps) · step rewards ${JSON.stringify(r)}\n`+JSON.stringify(tr,null,1)});
+
+// ===== QAOA =====
+const QP=qaoaProblem([3,2,4,1,3,2],[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[1,4]],5),QN=["A","B","C","D","E","F"];let qs={p:1,g:[.4,.4],b:[.3,.3]};
+function qGraph(sel){const pos=[[150,30],[260,100],[230,225],[70,225],[40,100],[150,135]];let s="";
+  for(const[a,b]of QP.E)s+=`<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" class="ax" stroke-width="3"/>`;
+  pos.forEach(([x,y],i)=>{const on=sel>>i&1;s+=`<circle cx="${x}" cy="${y}" r="25" style="fill:${on?"var(--acc)":"var(--tile2)"};stroke:var(--ink)" stroke-width="2"/><text x="${x}" y="${y-2}" text-anchor="middle" font-size="12" font-weight="800" style="fill:${on?"#111":"var(--ink)"}">SAT-${QN[i]}</text><text x="${x}" y="${y+13}" text-anchor="middle" font-size="11" style="fill:${on?"#111":"var(--muted)"}">risk ${QP.V[i]}</text>`});
+  $("qgraph").innerHTML=s}
+function qUpdate(){const p=qaoaRun(QP,qs.g.slice(0,qs.p),qs.b.slice(0,qs.p));let mode=0,ev=0;for(let k=0;k<QP.D;k++){if(p[k]>p[mode])mode=k;ev+=p[k]*QP.value[k]}
+  $("gam").value=qs.g[0];$("bet").value=qs.b[0];$("gamV").textContent=qs.g.slice(0,qs.p).map(v=>v.toFixed(2)).join(", ");$("betV").textContent=qs.b.slice(0,qs.p).map(v=>v.toFixed(2)).join(", ");
+  qaoaHist($("qhist"),QP,p);qGraph(mode);$("qpb").textContent=(p[QP.best]*100).toFixed(1)+"%";$("qpr").textContent=`${(p[QP.best]*QP.D).toFixed(1)}× better than random`;
+  $("qev").textContent=ev.toFixed(2);$("qem").textContent=`of a possible ${QP.value[QP.best]}`;$("qcl").textContent=bits(QP.best,6);
+  const sel=QN.filter((_,i)=>mode>>i&1);$("qdecode").innerHTML=`Most likely schedule <span class="mono">${bits(mode,6)}</span> protects ${sel.map(n=>"SAT-"+n).join(", ")||"none"}${QP.valid[mode]?"":" (breaks a conflict)"}.`}
+$("gam").addEventListener("input",e=>{qs.g[0]=+e.target.value;qUpdate()});$("bet").addEventListener("input",e=>{qs.b[0]=+e.target.value;qUpdate()});
+$("qopt").addEventListener("click",()=>{const r=qaoaOptimise(QP,qs.p);qs.g=[...r.g,r.g[0]].slice(0,2);qs.b=[...r.b,r.b[0]].slice(0,2);qUpdate()});
+document.querySelectorAll("[data-p]").forEach(b=>b.addEventListener("click",()=>{qs.p=+b.dataset.p;document.querySelectorAll("[data-p]").forEach(x=>x.setAttribute("aria-pressed",x===b));$("gam").disabled=$("bet").disabled=qs.p===2;qUpdate()}));
+
+// ===== hybrid QNN: density correction (synthetic, illustrative) =====
+let qnnSeed=11,QD;
+function makeData(seed){const r=mkRng(seed),g=gaussF(r);const mk=n=>{const X=[],Y=[];for(let i=0;i<n;i++){const alt=r(),f=r(),ap=r(),tt=r();
+  Y.push(.45*ap*(1-Math.exp(-tt/.25))*(1.2-.6*alt)+.12*(f-.5)+.03*g());X.push([alt,f,ap,tt].map(v=>v*Math.PI))}return{X,Y}};return{tr:mk(60),te:mk(40)}}
+const rmse=(f,d)=>Math.sqrt(d.X.reduce((s,x,i)=>s+(f(x)-d.Y[i])**2,0)/d.X.length);
+function qnnRun(){const D=makeData(qnnSeed),r=mkRng(qnnSeed*7+3),Q=qnnInit(r),M=mlpInit(r),sq={},sm={},cq=[],cm=[];
+  const mean=D.tr.Y.reduce((a,b)=>a+b)/D.tr.Y.length,base=Math.sqrt(D.te.Y.reduce((s,y)=>s+(y-mean)**2,0)/D.te.Y.length);$("qb").textContent=base.toFixed(3);
+  let ep=0;$("qtrain").disabled=true;(function chunk(){for(let k=0;k<5&&ep<=150;k++,ep++){let gq=null,gm=null;
+    D.tr.X.forEach((x,i)=>{gq=addG(gq,qnnGrad(Q,x,2*(qnnOut(Q,x)-D.tr.Y[i])));gm=addG(gm,mlpGrad(M,x,2*(mlpOut(M,x)-D.tr.Y[i])))});
+    adam(Q,scaleG(gq,1/D.tr.X.length),sq,.05);adam(M,scaleG(gm,1/D.tr.X.length),sm,.05);cq.push([ep,rmse(x=>qnnOut(Q,x),D.te)]);cm.push([ep,rmse(x=>mlpOut(M,x),D.te)])}
+    lineChart($("qchart"),[{pts:cm,color:"var(--muted)",width:2.5,dash:"6 4"},{pts:cq,color:"var(--acc)",width:3}],{W:600,H:180,x0:0,x1:150,y0:0,y1:.2,yt:[0,.05,.1,.15,.2],xt:[0,50,100,150],xfmt:v=>"epoch "+v,yfmt:v=>v.toFixed(2),left:44,right:40});
+    $("qq").textContent=cq.at(-1)[1].toFixed(3);$("qm").textContent=cm.at(-1)[1].toFixed(3);$("qinfo").textContent=`epoch ${Math.min(ep,150)} · solid: QNN · dashed: classical`;
+    if(ep<=150)requestAnimationFrame(chunk);else $("qtrain").disabled=false})()}
+$("qtrain").addEventListener("click",qnnRun);$("qseed").addEventListener("click",()=>{qnnSeed=Math.floor(Math.random()*1e6);qnnRun()});
+
+
+// ===== init =====
+(async()=>{await load();$("lIn").value=st.launchIn;$("lAlt").value=st.launchAlt;$("lName").value=st.launchName;fleetTable();
+  circuitSVG($("circ"),["alt","F10.7","Ap","t"]);render();curve=[[0,evalPol()]];drawCurve();qUpdate();requestAnimationFrame(frame)})();
+
+</script>
+</body>
