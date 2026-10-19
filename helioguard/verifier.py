@@ -4,6 +4,8 @@ The LLM produces a decision trace: a list of JSON steps. Each step is checked by
 deterministic physics verifier V(s, a) -> {0, 1}, giving dense turn-level rewards.
 These rewards feed GVPO training (group-centred rewards across sampled traces).
 """
+from verispace_engine.verifier_base import VerifierBase, group_centered  # noqa: F401 (re-export)
+
 from .atmosphere import kp_to_g_scale
 from .physics import simulate, can_raise
 
@@ -39,47 +41,55 @@ def best_action(sc, scen):
     return max(options, key=lambda a: _score(_outcome(sc, scen, a)))
 
 
-def verify_step(step, sc, scen, tol=0.25):
-    """Return (reward, reason) for one reasoning step."""
-    kind = step.get("type")
+class HelioGuardVerifier(VerifierBase):
+    """VPR rules for storm decisions. Context is the pair (spacecraft, scenario)."""
 
-    if kind == "classify_storm":
+    def __init__(self, tol: float = 0.25):
+        super().__init__()
+        self.tol = tol
+        self.add_rule("classify_storm", self._classify_storm)
+        self.add_rule("predict_decay", self._predict_decay)
+        self.add_rule("check_feasibility", self._check_feasibility)
+        self.add_rule("choose_action", self._choose_action)
+
+    @staticmethod
+    def _classify_storm(step, ctx):
+        _, scen = ctx
         truth = kp_to_g_scale(scen["kp"])
-        ok = step.get("g_scale") == truth
-        return int(ok), f"storm level {step.get('g_scale')} vs truth {truth}"
+        return step.get("g_scale") == truth, f"storm level {step.get('g_scale')} vs truth {truth}"
 
-    if kind == "predict_decay":
-        attitude = step["attitude"]
-        out = simulate(sc, scen["alt_km"], attitude, scen["storm_multiplier"], step["hours"])
+    def _predict_decay(self, step, ctx):
+        sc, scen = ctx
+        out = simulate(sc, scen["alt_km"], step["attitude"], scen["storm_multiplier"], step["hours"])
         true_loss = scen["alt_km"] - out["final_alt_km"]
         pred = step["altitude_loss_km"]
-        ok = abs(pred - true_loss) <= tol * max(true_loss, 1e-6)
-        return int(ok), f"predicted loss {pred:.1f} km vs physics {true_loss:.1f} km"
+        ok = abs(pred - true_loss) <= self.tol * max(true_loss, 1e-6)
+        return ok, f"predicted loss {pred:.1f} km vs physics {true_loss:.1f} km"
 
-    if kind == "check_feasibility":
+    @staticmethod
+    def _check_feasibility(step, ctx):
+        sc, scen = ctx
         truth = feasible(sc, scen, step["action"])
-        ok = step.get("feasible") == truth
-        return int(ok), f"'{step['action']}' feasible={step.get('feasible')} vs physics {truth}"
+        return (step.get("feasible") == truth,
+                f"'{step['action']}' feasible={step.get('feasible')} vs physics {truth}")
 
-    if kind == "choose_action":
+    @staticmethod
+    def _choose_action(step, ctx):
+        sc, scen = ctx
         act = step["action"]
         if not feasible(sc, scen, act):
-            return 0, f"'{act}' is physically infeasible under this storm"
+            return False, f"'{act}' is physically infeasible under this storm"
         best = best_action(sc, scen)
-        return int(act == best), f"chose '{act}', physics-optimal is '{best}'"
+        return act == best, f"chose '{act}', physics-optimal is '{best}'"
 
-    return 0, f"unknown step type '{kind}'"
+
+def verify_step(step, sc, scen, tol=0.25):
+    """Return (reward, reason) for one reasoning step."""
+    res = HelioGuardVerifier(tol).score_step(step, (sc, scen))
+    return res.reward, res.reason
 
 
 def verify_trace(trace, sc, scen):
-    results = [verify_step(s, sc, scen) for s in trace]
-    rewards = [r for r, _ in results]
-    return {"step_rewards": rewards, "reasons": [m for _, m in results],
-            "process_reward": sum(rewards) / len(rewards) if rewards else 0.0}
-
-
-def group_centered(rewards):
-    """Group-relative rewards (r - mean) for a group of traces on the same prompt,
-    the reward term GVPO weights its gradient by."""
-    mean = sum(rewards) / len(rewards)
-    return [r - mean for r in rewards]
+    res = HelioGuardVerifier().score_episode(trace, (sc, scen))
+    return {"step_rewards": res.step_rewards, "reasons": res.reasons,
+            "process_reward": res.process_reward}

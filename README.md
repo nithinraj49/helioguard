@@ -35,6 +35,15 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 ```
 
+## Phase 1 engine core (done): `verispace_engine/`
+Domain-free package shared with the Navigator project; a test fails if it ever mentions HelioGuard.
+- `tools.py`: `Tool` protocol (name, JSON schema, `run()`) and `ToolRegistry` (validates arguments, turns tool errors into failed results)
+- `schema.py`: pydantic `TraceStep`, `DecisionTrace`, `ToolCall`, `ToolResult`
+- `verifier_base.py`: `VerifierBase` with `add_rule()`, `score_step()`, `score_episode()`; unknown, malformed and empty steps earn 0
+- `env_base.py`: `EnvBase` with `reset()` / `step()`
+
+HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
+
 ## Phase 1 (done): the physics verifier
 - `atmosphere.py`: reference density model plus storm multiplier and NOAA G-scale
 - `physics.py`: drag force, orbit decay under drag/thrust, raise feasibility
