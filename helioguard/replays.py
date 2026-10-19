@@ -29,12 +29,14 @@ MAY_2024_REAL = {
 }
 
 
-def build_replay(spec: dict, sw_path: Path | None = None) -> dict:
-    """Scenario dict usable by the verifier. `sw_path=None` downloads (and caches) SW-All."""
+def build_replay(spec: dict, sw_path: Path | None = None, storm_time: bool = True) -> dict:
+    """Scenario dict usable by the verifier. `sw_path=None` downloads (and caches) SW-All.
+
+    `storm_time=True` drives NRLMSIS with 3-hourly ap (right for a storm); False uses daily Ap."""
     path = Path(sw_path) if sw_path else fetch_space_weather(CACHE_DIR)
     summary = storm_summary(load_space_weather(path), *spec["window"])
-    fn, source = get_density_fn(path, spec["start"], spec["horizon_h"])
+    fn, source = get_density_fn(path, spec["start"], spec["horizon_h"], storm_time=storm_time)
     return {"id": spec["id"], "start": spec["start"], "alt_km": spec["alt_km"],
             "horizon_h": spec["horizon_h"], "kp": summary["kp_max"], "g_scale": summary["g_scale"],
             "ap_max": summary["ap_max"], "storm_multiplier": 1.0,   # density already in density_fn
-            "density_fn": fn, "data_source": source, "illustrative_spacecraft": True}
+            "density_fn": fn, "data_source": source, "storm_time_mode": storm_time, "illustrative_spacecraft": True}

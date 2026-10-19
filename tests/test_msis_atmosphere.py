@@ -38,6 +38,31 @@ def test_single_point_matches_pymsis_directly():
     assert m(300.0, 18.0) == pytest.approx(direct, rel=1e-3)
 
 
+def test_storm_time_mode_matches_pymsis_directly():
+    m = MsisDensity.from_file(FIX / "sw_feb2022.csv", FEB_START, hours=48, lats=[0.0], lons=[0.0],
+                              storm_time=True)
+    when = np.datetime64("2022-02-04T12:00", "m")
+    direct = float(np.ravel(pymsis.calculate([when], [0.0], [0.0], [300.0],
+                                             geomagnetic_activity=-1)[..., 0])[0])
+    assert m(300.0, 18.0) == pytest.approx(direct, rel=1e-3)
+
+
+def test_storm_time_mode_differs_from_daily_ap_mode():
+    daily = MsisDensity.from_file(FIX / "sw_feb2022.csv", FEB_START, hours=48)
+    storm = MsisDensity.from_file(FIX / "sw_feb2022.csv", FEB_START, hours=48, storm_time=True)
+    assert any(abs(daily(210.0, h) / storm(210.0, h) - 1) > 0.01 for h in range(49))
+
+
+def test_density_change_report_structure_and_consistency():
+    from helioguard.atmosphere_msis import storm_density_change
+    for storm_time in (False, True):
+        r = storm_density_change(FIX / "sw_feb2022.csv", 210.0, storm_time=storm_time)
+        assert r["baseline_day"] == "2022-02-02" and r["storm_time_mode"] is storm_time
+        assert r["baseline_density"] > 0
+        assert r["peak_local_ratio"] >= r["peak_orbit_avg_ratio"] > 0
+        assert 0 <= r["peak_hour"] <= 72
+
+
 def test_clamps_outside_the_time_window(feb):
     assert feb(300.0, -5.0) == feb(300.0, 0.0)
     assert feb(300.0, 500.0) == feb(300.0, 48.0)

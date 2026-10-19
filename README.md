@@ -53,10 +53,23 @@ HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb
 
 | Real-index replay, 48 h (illustrative spacecraft) | Raise orbit | Edge-on | Hold |
 |---|---|---|---|
-| Feb 2022 at 210 km (G1, Kp 5.3) | survives, 259 km | survives, 182 km | lost at hour 24.3 |
-| May 2024 at 350 km (G5, Kp 9.0) | survives, 428 km | survives, 348 km | survives, 343 km |
+| Feb 2022 at 210 km (G1, Kp 5.3) | survives, 259 km | survives, 181 km | lost at hour 24.4 |
+| May 2024 at 350 km (G5, Kp 9.0) | survives, 428 km | survives, 347 km | survives, 343 km |
 
-**Finding.** With real indices, NRLMSIS gives only a small density rise for the Feb 2022 storm (orbit-averaged peak about x1.02 of the start value at 210 km), far below the "up to 50 percent" SpaceX reported. So the Phase 1 result (raise orbit infeasible, every action lost) came from the illustrative x1.5 multiplier, not from the model. This is the gap the Phase 3 density-correction work targets. Nothing was tuned to recover the Phase 1 outcome. May 2024 peaks at about x1.32 at 350 km. The 3 Feb 2022 SATCAT listing shows only 17 payloads, so it is not used as a loss count.
+**Finding.** With real indices, NRLMSIS gives a modest density rise for the Feb 2022 storm and no loss of the satellite when raising. The Phase 1 result (raise orbit infeasible, every action lost) came from the illustrative x1.5 multiplier, not from the model. Nothing was tuned to recover it. The replays drive NRLMSIS in storm-time mode (3-hourly ap); `build_replay(..., storm_time=False)` gives the daily-Ap mode that pymsis uses by default.
+
+Density change at 210 km, 3 to 5 Feb 2022 versus the quiet baseline of 2 Feb 2022 (24 h mean; 5 lat x 4 lon grid; `storm_density_change()`):
+
+| NRLMSIS input mode | Peak at one grid point | Peak, orbit-averaged | Mean over the 72 h, orbit-averaged |
+|---|---|---|---|
+| Daily Ap (pymsis default) | x1.30 | x1.09 | x1.05 |
+| Storm-time (3-hourly ap) | x1.34 | x1.13 | x1.07 |
+
+An earlier version of this note reported about x1.02; that compared against a start time already inside the storm onset, and the quiet-day baseline above is the right comparison. May 2024 peaks at about x1.32 at 350 km relative to the replay start (not the quiet-day baseline).
+
+**How to read the "up to 50 percent".** SpaceX's figure compared the storm with earlier launches, not with the preceding quiet day, and part of that difference reflects rising solar activity over the previous months (observed F10.7 averaged about 75 in Feb to Apr 2021 and about 105 in Jan 2022, from the SW-All file used here). Peer-reviewed comparisons also find that NRLMSIS underestimates this storm: Lin et al. (2022) report an NRLMSIS 2.0 peak enhancement about half of what Swarm measured, and He et al. (2023) find MSIS2.0 underestimates the density enhancement by about 50 percent. Berger et al. (2023) find 20 to 30 percent enhancement at the 210 km staging altitude from NRLMSIS, JB08 and HASDM. These figures come from different altitudes and locations and are not one number. This underestimate is what the Phase 3 density-correction tool is meant to address. The spacecraft and altitudes here remain ILLUSTRATIVE, and the 3 Feb 2022 SATCAT listing shows only 17 payloads, so it is not used as a loss count.
+
+References: [Lin et al. 2022](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2022SW003254), [He et al. 2023](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2023SW003521), [Berger et al. 2023](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2022SW003330).
 
 ## Phase 1 (done): the physics verifier
 - `atmosphere.py`: reference density model plus storm multiplier and NOAA G-scale
