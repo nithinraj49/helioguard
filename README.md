@@ -44,6 +44,20 @@ Domain-free package shared with the Navigator project; a test fails if it ever m
 
 HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
 
+## Phase 2 (done): real physics and data
+- `helioguard/data/noaa.py`: Kp, Ap and F10.7 from the CelesTrak SW-All file (NOAA/GFZ data), with caching (`data/cache.py`)
+- `helioguard/data/celestrak.py`: GP elements, TLE history through sgp4, and SATCAT decay records. CelesTrak serves current elements only; real orbit histories need Space-Track, so the TLE reader takes text from any source
+- `helioguard/atmosphere_msis.py`: NRLMSIS density (pymsis) driven by the real indices, orbit-averaged over a small lat/lon grid (illustrative). Falls back to the old reference atmosphere and says which one it used
+- `helioguard/replays.py`, `demo_replays.py`: 3 to 5 Feb 2022 (210 km) and 10 to 12 May 2024 (350 km, illustrative). Offline fixtures in `tests/fixtures/`; no test touches the network
+- `physics.py` takes an optional `density_fn`; with none, results are identical to Phase 1 (the Phase 0 tests still pass)
+
+| Real-index replay, 48 h (illustrative spacecraft) | Raise orbit | Edge-on | Hold |
+|---|---|---|---|
+| Feb 2022 at 210 km (G1, Kp 5.3) | survives, 259 km | survives, 182 km | lost at hour 24.3 |
+| May 2024 at 350 km (G5, Kp 9.0) | survives, 428 km | survives, 348 km | survives, 343 km |
+
+**Finding.** With real indices, NRLMSIS gives only a small density rise for the Feb 2022 storm (orbit-averaged peak about x1.02 of the start value at 210 km), far below the "up to 50 percent" SpaceX reported. So the Phase 1 result (raise orbit infeasible, every action lost) came from the illustrative x1.5 multiplier, not from the model. This is the gap the Phase 3 density-correction work targets. Nothing was tuned to recover the Phase 1 outcome. May 2024 peaks at about x1.32 at 350 km. The 3 Feb 2022 SATCAT listing shows only 17 payloads, so it is not used as a loss count.
+
 ## Phase 1 (done): the physics verifier
 - `atmosphere.py`: reference density model plus storm multiplier and NOAA G-scale
 - `physics.py`: drag force, orbit decay under drag/thrust, raise feasibility
