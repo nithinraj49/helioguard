@@ -155,3 +155,22 @@ def test_engine_has_no_helioguard_code():
     for f in files:
         text = f.read_text(encoding="utf-8").lower()
         assert "helioguard" not in text, f.name
+
+
+# --- enum arguments (added in Phase 3) ------------------------------------------
+class Pick:
+    name = "pick"
+    description = "Pick a colour"
+    schema = {"type": "object", "properties": {"colour": {"type": "string", "enum": ["red", "blue"]}},
+              "required": ["colour"]}
+
+    def run(self, colour):
+        return {"colour": colour}
+
+
+def test_registry_enforces_enum_values():
+    reg = ToolRegistry()
+    reg.register(Pick())
+    assert reg.call(ToolCall(name="pick", arguments={"colour": "red"})).ok
+    bad = reg.call(ToolCall(name="pick", arguments={"colour": "green"}))
+    assert not bad.ok and "colour" in bad.error

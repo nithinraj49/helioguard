@@ -44,6 +44,32 @@ Domain-free package shared with the Navigator project; a test fails if it ever m
 
 HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
 
+## Phase 3 (done, with one open item): tools
+Five tools on the engine `Tool` protocol, in `helioguard/tools/`. Spacecraft values are illustrative. HelioGuard recommends; humans decide.
+
+| Tool | What it does | Tested against |
+|---|---|---|
+| `simulate_decay` | hourly altitude for an action under the scenario's storm | the Phase 1 physics (reentry hour 35.3 for edge-on, Feb 2022 multiplier case) |
+| `check_feasibility` | thrust versus drag, both in mN | 85.1 mN drag against 70 mN thrust |
+| `min_safe_altitude` | lowest altitude where raising works | the project document: about 218, 228 and 243 km at x1.5, x2, x3 density |
+| `qaoa_schedule` | one action per asset, one raise per ground window, as a QUBO solved by PennyLane QAOA on `lightning.qubit` | OR-Tools CP-SAT and the exact optimum, always returned alongside |
+| `qnn_density_correction` | NRLMSIS density times a learned correction (6 qubits, AngleEmbedding + StronglyEntanglingLayers + linear head, 61 parameters) | a same-size MLP (57 parameters) and uncorrected NRLMSIS; **disabled until it passes the held-out check** |
+
+**QAOA versus OR-Tools** (Feb 2022 scenario, 3 actions per asset, simulator, seed 0; QAOA picks the lowest-energy feasible bitstring among its 64 most probable samples, a classical post-processing step):
+
+| Fleet | QAOA depth | QAOA objective | OR-Tools / exact | Probability on the optimum | QAOA time | OR-Tools time |
+|---|---|---|---|---|---|---|
+| 3 assets, 9 qubits | 1 | 2.517 | 2.636 | 0.3 % | 0.6 s | 5 ms |
+| 3 assets, 9 qubits | 2 | 2.636 | 2.636 | 2.4 % | 1.4 s | 1 ms |
+| 3 assets, 9 qubits | 3 | 2.636 | 2.636 | 2.3 % | 2.4 s | 1 ms |
+| 4 assets, 12 qubits | 1 | 2.779 | 4.426 | 0.0 % | 0.5 s | 2 ms |
+| 4 assets, 12 qubits | 2 | 3.652 | 4.426 | 0.2 % | 2.3 s | 1 ms |
+| 4 assets, 12 qubits | 3 | 4.276 | 4.426 | 0.0 % | 3.3 s | 1 ms |
+
+OR-Tools solves every instance to the exact optimum in milliseconds. Shallow QAOA reaches it on the 9-qubit fleet only at depth 2 or more and only through the sample selection above; at 12 qubits it stays below the optimum. No quantum advantage is claimed, and none is seen.
+
+**QNN density correction: not yet shown to help.** The success criterion is that the corrected density reproduces the observed decay of Starlink Group 4-7 better than uncorrected NRLMSIS, with Feb 2022 held out and the model trained on other storms. That needs real TLE histories from Space-Track and I have no credentials here, so it has **not been run**. What exists and is tested on synthetic histories only: the decay-to-density pipeline (`decay_density.py`), the held-out comparison against the same-size MLP, the two gates (held-out RMSE margin and decay-prediction error margin, both at least 5 percent better), and `density_pipeline.py`, which refuses to train on the held-out event. The tool therefore returns uncorrected NRLMSIS density, with the reason, by default. To run it: put credentials in `.env`, copy `configs/qnn_events.example.json`, add training storms and satellites, and run `python train_qnn_density.py <config>`. Caveats for that run: the Group 4-7 satellites have no quiet period before the storm, so their ballistic coefficient (Cd*A/m) must be supplied and justified; and TLE mean motion is treated as circular-orbit mean motion, an approximation.
+
 ## Phase 2 (done): real physics and data
 - `helioguard/data/noaa.py`: Kp, Ap and F10.7 from the CelesTrak SW-All file (NOAA/GFZ data), with caching (`data/cache.py`)
 - `helioguard/data/celestrak.py`: GP elements, TLE history through sgp4, and SATCAT decay records. CelesTrak serves current elements only; real orbit histories need Space-Track, so the TLE reader takes text from any source

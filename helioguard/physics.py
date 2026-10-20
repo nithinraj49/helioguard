@@ -37,21 +37,40 @@ def drag_force(alt_km: float, area_m2: float, cd: float, storm_mult: float,
 
 def simulate(sc: Spacecraft, alt_km: float, attitude: str, storm_mult: float,
              hours: float, thrusting: bool = False, dt_s: float = 60.0,
-             density_fn: DensityFn | None = None) -> dict:
-    """Propagate altitude. Returns final altitude and whether/when reentry occurs."""
+             density_fn: DensityFn | None = None, sample_every_s: float | None = None) -> dict:
+    """Propagate altitude. Returns final altitude and whether/when reentry occurs.
+
+    With `sample_every_s`, the result also holds `times_h` / `altitudes_km` (a reporting
+    option; it does not touch the integration)."""
     area = sc.area_m2[attitude]
     a = R_EARTH + alt_km * 1e3
     t, t_end = 0.0, hours * 3600.0
+    times: list[float] = []
+    alts: list[float] = []
+    next_sample = 0.0
+
+    def finish(out: dict, t_now: float, alt_now: float) -> dict:
+        if sample_every_s:
+            times.append(t_now / 3600)
+            alts.append(alt_now)
+            out["times_h"], out["altitudes_km"] = times, alts
+        return out
+
     while t < t_end:
         alt = (a - R_EARTH) / 1e3
         if alt < REENTRY_ALT_KM:
-            return {"final_alt_km": alt, "reentered": True, "reentry_hour": t / 3600}
+            return finish({"final_alt_km": alt, "reentered": True, "reentry_hour": t / 3600}, t, alt)
+        if sample_every_s and t >= next_sample:
+            times.append(t / 3600)
+            alts.append(alt)
+            next_sample += sample_every_s
         f = -drag_force(alt, area, sc.cd, storm_mult, density_fn, t / 3600)
         if thrusting:
             f += sc.thrust_n
         a += 2 * f * a ** 1.5 / (sc.mass_kg * math.sqrt(MU)) * dt_s
         t += dt_s
-    return {"final_alt_km": (a - R_EARTH) / 1e3, "reentered": False, "reentry_hour": None}
+    alt = (a - R_EARTH) / 1e3
+    return finish({"final_alt_km": alt, "reentered": False, "reentry_hour": None}, t, alt)
 
 
 def can_raise(sc: Spacecraft, alt_km: float, attitude: str, storm_mult: float,

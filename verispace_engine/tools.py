@@ -31,6 +31,8 @@ def _check_arguments(schema: dict[str, Any], args: dict[str, Any]) -> str | None
             is_bool = isinstance(val, bool)
             if not isinstance(val, _JSON_TYPES[want]) or (is_bool and want != "boolean"):
                 return f"argument '{key}' must be {want}"
+        if "enum" in props[key] and val not in props[key]["enum"]:
+            return f"argument '{key}' must be one of {props[key]['enum']}"
     return None
 
 

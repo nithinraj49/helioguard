@@ -1,0 +1,22 @@
+{
+  "_comment": "EXAMPLE. Fill in training storms and satellites before running train_qnn_density.py. Feb 2022 (Starlink Group 4-7, launch 2022-010) is held out and must not be trained on. 'ballistic' is Cd*A/m in m^2/kg; the Group 4-7 satellites have no quiet period before the storm, so a justified value is needed there (0.0338 is the ILLUSTRATIVE craft, not a measured value). For other events, null estimates it from the pre-storm element sets.",
+  "heldout": "feb_2022",
+  "events": [
+    {
+      "name": "feb_2022",
+      "start": "2022-02-03",
+      "end": "2022-02-10",
+      "onset": "2022-02-03T12:00:00+00:00",
+      "launch_intdes": "2022-010",
+      "ballistic": 0.0338
+    },
+    {
+      "name": "example_training_storm",
+      "start": "2024-05-09",
+      "end": "2024-05-14",
+      "onset": "2024-05-10T17:00:00+00:00",
+      "norad_ids": [],
+      "ballistic": null
+    }
+  ]
+}
