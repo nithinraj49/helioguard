@@ -21,6 +21,7 @@ from .decay_density import (decay_gate, effective_density_samples, estimate_ball
 from .qnn_density import DensityCorrector, compare_on_heldout
 
 MIN_QUIET_ELEMENT_SETS = 3
+MIN_INTERVAL_S = 3 * 3600.0           # shorter intervals are dominated by TLE fit noise
 
 
 @dataclass
@@ -54,7 +55,8 @@ def _prepare(client: SpaceTrackClient, spec: EventSpec, sw_path, sw_rows) -> dic
         ballistic[norad] = estimate_ballistic_coefficient(quiet, rho_fn, t0)
     X, y = [], []
     for norad, tles in histories.items():
-        for s in effective_density_samples(tles, ballistic[norad], rho_fn, t0, sw_rows, spec.onset):
+        for s in effective_density_samples(tles, ballistic[norad], rho_fn, t0, sw_rows, spec.onset,
+                                         min_interval_s=MIN_INTERVAL_S):
             X.append(s.features)
             y.append(s.target)
     if not y:

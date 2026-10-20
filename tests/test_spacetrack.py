@@ -120,3 +120,30 @@ def test_tle_records_carry_the_norad_id():
     assert {t.norad_id for t in hist} == {99001, 99002}
     groups = group_by_norad(hist)
     assert all(g == sorted(g, key=lambda t: t.epoch) for g in groups.values())
+
+
+# --- generic queries (added with the event-proposal scripts) --------------------------
+def test_generic_query_is_cached_and_uses_the_given_path(tmp_path):
+    client, t = make(tmp_path, body="[]")
+    path = "/basicspacedata/query/class/gp_history/EPOCH/2023-04-22--2023-04-23/format/json"
+    assert client.query(path, "json") == "[]"
+    client.query(path, "json")
+    assert len(t.gets) == 1 and t.gets[0].endswith(path)
+
+
+def test_generic_query_refuses_paths_outside_the_query_api(tmp_path):
+    client, _ = make(tmp_path)
+    with pytest.raises(SpaceTrackError):
+        client.query("/ajaxauth/login", "json")
+    with pytest.raises(SpaceTrackError):
+        client.query("https://evil.example.com/x", "json")
+
+
+def test_group_by_norad_drops_duplicate_epochs():
+    hist = parse_tle_history(SYNTH)
+    doubled = hist + hist[:3]                       # re-issued element sets with identical epochs
+    groups = group_by_norad(doubled)
+    for g in groups.values():
+        epochs = [t.epoch for t in g]
+        assert len(epochs) == len(set(epochs)) and epochs == sorted(epochs)
+    assert sum(len(g) for g in groups.values()) == len(hist)

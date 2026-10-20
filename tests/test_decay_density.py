@@ -112,3 +112,34 @@ def test_gate_requires_a_real_margin():
     assert decay_gate(2.0, 1.99) is False            # 0.5 % better is not "better"
     assert decay_gate(2.0, 2.0) is False
     assert decay_gate(0.0, 0.0) is False
+
+
+# --- ballistic coefficient calibration ---------------------------------------------
+def test_interval_ballistic_and_band_on_a_clean_history():
+    from helioguard.tools.decay_density import interval_ballistic, summarize_ballistic
+    hist = synth_history(80002, T0, lambda h: 1.0)
+    vals = interval_ballistic(hist, rho_ref, T0)
+    assert len(vals) == len(hist) - 1
+    s = summarize_ballistic([b for _, b in vals])
+    assert s["central"] == pytest.approx(B_TRUE, rel=0.05)
+    assert s["p16"] <= s["central"] <= s["p84"]
+    assert (s["p84"] - s["p16"]) / s["central"] < 0.2            # clean data: a tight band
+    assert s["n"] == len(vals)
+
+
+def test_summarize_requires_data_and_widens_with_scatter():
+    from helioguard.tools.decay_density import summarize_ballistic
+    with pytest.raises(ValueError):
+        summarize_ballistic([])
+    tight = summarize_ballistic([0.03, 0.031, 0.029, 0.03])
+    wide = summarize_ballistic([0.01, 0.05, 0.02, 0.04])
+    assert wide["p84"] - wide["p16"] > tight["p84"] - tight["p16"]
+
+
+def test_short_intervals_are_ignored_when_a_minimum_length_is_set():
+    from helioguard.tools.decay_density import interval_ballistic
+    hist = synth_history(80003, T0, lambda h: 1.0, step_h=1, hours=24)       # hourly element sets
+    assert len(interval_ballistic(hist, rho_ref, T0)) == 24
+    assert len(interval_ballistic(hist, rho_ref, T0, min_interval_s=3 * 3600)) == 0
+    sparse = synth_history(80003, T0, lambda h: 1.0, step_h=8, hours=24)
+    assert len(interval_ballistic(sparse, rho_ref, T0, min_interval_s=3 * 3600)) == 3

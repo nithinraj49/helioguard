@@ -90,6 +90,35 @@ def estimate_ballistic_coefficient(quiet_tles: Sequence[TLE], rho_fn: RhoFn, t0:
     return statistics.median(values)
 
 
+def interval_ballistic(tles: Sequence[TLE], rho_fn: RhoFn, t0: datetime,
+                       min_interval_s: float = 0.0) -> list[tuple[datetime, float]]:
+    """(interval midpoint, B) for every decaying interval: B = -(da/dt) / (rho_ref * sqrt(mu*a)).
+    Intervals shorter than `min_interval_s` are skipped (TLE fit noise dominates them)."""
+    out = []
+    for a, b in _pairs(tles):
+        rate, a_mid, dt = _decay_rate(a, b)
+        if rate < 0 and dt >= min_interval_s:
+            mid = a.epoch + (b.epoch - a.epoch) / 2
+            rho = rho_fn((a_mid - R_EARTH) / 1e3, _hours(t0, mid))
+            out.append((mid, -rate / (rho * math.sqrt(MU * a_mid))))
+    return out
+
+
+def summarize_ballistic(values: Sequence[float]) -> dict:
+    """Central value (median) and a 16-84 percentile band of per-interval B estimates."""
+    if not values:
+        raise ValueError("no ballistic coefficient estimates")
+    v = sorted(values)
+
+    def pct(q: float) -> float:
+        pos = q * (len(v) - 1)
+        lo = int(math.floor(pos))
+        hi = min(lo + 1, len(v) - 1)
+        return v[lo] + (v[hi] - v[lo]) * (pos - lo)
+
+    return {"central": statistics.median(v), "p16": pct(0.16), "p84": pct(0.84), "n": len(v)}
+
+
 def _features(a: TLE, b: TLE, alt_km: float, sw: Sequence[DailyIndices], onset: datetime) -> tuple[float, ...]:
     mid = a.epoch + (b.epoch - a.epoch) / 2
     row = next((r for r in sw if r.day == mid.date()), None)
@@ -101,11 +130,12 @@ def _features(a: TLE, b: TLE, alt_km: float, sw: Sequence[DailyIndices], onset: 
 
 
 def effective_density_samples(tles: Sequence[TLE], ballistic: float, rho_fn: RhoFn, t0: datetime,
-                              sw: Sequence[DailyIndices], onset: datetime) -> list[Sample]:
+                              sw: Sequence[DailyIndices], onset: datetime,
+                              min_interval_s: float = 0.0) -> list[Sample]:
     samples = []
     for a, b in _pairs(tles):
-        rate, a_mid, _ = _decay_rate(a, b)
-        if rate >= 0:
+        rate, a_mid, dt = _decay_rate(a, b)
+        if rate >= 0 or dt < min_interval_s:
             continue                          # raising or noise: no drag signal in this interval
         alt = (a_mid - R_EARTH) / 1e3
         mid = a.epoch + (b.epoch - a.epoch) / 2

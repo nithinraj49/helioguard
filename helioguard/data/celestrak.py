@@ -104,11 +104,12 @@ def parse_tle_history(text: str) -> list[TLE]:
 
 
 def group_by_norad(history: list[TLE]) -> dict[int, list[TLE]]:
-    """Split a mixed history into per-object lists, each sorted by epoch."""
-    groups: dict[int, list[TLE]] = {}
+    """Split a mixed history into per-object lists, sorted by epoch, one set per epoch
+    (Space-Track sometimes re-issues a set with an identical epoch; the last one is kept)."""
+    groups: dict[int, dict[datetime, TLE]] = {}
     for t in history:
-        groups.setdefault(t.norad_id, []).append(t)
-    return {k: sorted(v, key=lambda t: t.epoch) for k, v in groups.items()}
+        groups.setdefault(t.norad_id, {})[t.epoch] = t
+    return {k: [v[e] for e in sorted(v)] for k, v in groups.items()}
 
 
 def sgp4_altitude_km(tle: TLE) -> float:

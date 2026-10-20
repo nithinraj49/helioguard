@@ -132,6 +132,12 @@ class SpaceTrackClient:
         cached.write_text(text, encoding="utf-8")
         return text
 
+    def query(self, path: str, suffix: str = "json") -> str:
+        """Run a read-only query (path must start with /basicspacedata/query/); cached."""
+        if not path.startswith("/basicspacedata/query/"):
+            raise SpaceTrackError("only /basicspacedata/query/ paths are allowed")
+        return self._fetch(path, suffix)
+
     def gp_history(self, norad_ids: list[int], start: date, end: date) -> list[TLE]:
         """All element sets for the objects with epoch in [start, end], sorted by epoch."""
         ids = ",".join(str(i) for i in norad_ids)
