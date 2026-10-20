@@ -80,18 +80,21 @@ def test_max_objects_cap_prefers_better_tracked_objects():
 
 
 # --- config ---------------------------------------------------------------------------
-def test_config_keeps_feb_2022_held_out_and_may_2024_as_a_test_storm(sw_may):
+def test_config_roles_may_is_the_held_out_test_and_feb_is_a_quiet_check(sw_may):
     storm = find_storms(sw_may, min_kp=8.0, exclude=[])[0]
     cfg = build_config(training=[(storm, [90001, 90002])], may_2024=(storm, [90003]),
-                       feb_2022_intdes="2022-010", ballistic_feb_2022=0.05)
+                       feb_2022_intdes="2022-010", ballistic_feb_2022=0.125,
+                       ballistic_band_feb_2022=(0.071, 0.192))
     json.dumps(cfg)                                          # serialisable
     names = {e["name"]: e for e in cfg["events"]}
-    assert cfg["heldout"] == "feb_2022"
-    assert names["feb_2022"]["role"] == "heldout_test" and names["feb_2022"]["launch_intdes"] == "2022-010"
-    assert names["may_2024"]["role"] == "test_only"
+    assert names["may_2024"]["role"] == "heldout_test"
+    feb = names["feb_2022"]
+    assert feb["role"] == "quiet_check" and feb["launch_intdes"] == "2022-010"
+    assert feb["ballistic"] == 0.125 and feb["ballistic_band"] == [0.071, 0.192]
     train = [e for e in cfg["events"] if e["role"] == "train"]
     assert len(train) == 1 and train[0]["ballistic"] is None
     assert all(e["name"] not in ("feb_2022", "may_2024") for e in train)
+    assert "heldout" not in cfg                              # roles live on the events
 
 
 def test_noisy_short_intervals_do_not_make_an_object_look_like_it_manoeuvres():

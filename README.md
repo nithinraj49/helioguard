@@ -68,7 +68,36 @@ Five tools on the engine `Tool` protocol, in `helioguard/tools/`. Spacecraft val
 
 OR-Tools solves every instance to the exact optimum in milliseconds. Shallow QAOA reaches it on the 9-qubit fleet only at depth 2 or more and only through the sample selection above; at 12 qubits it stays below the optimum. No quantum advantage is claimed, and none is seen.
 
-**QNN density correction: not yet shown to help.** The success criterion is that the corrected density reproduces the observed decay of Starlink Group 4-7 better than uncorrected NRLMSIS, with Feb 2022 held out and the model trained on other storms. That needs real TLE histories from Space-Track and I have no credentials here, so it has **not been run**. What exists and is tested on synthetic histories only: the decay-to-density pipeline (`decay_density.py`), the held-out comparison against the same-size MLP, the two gates (held-out RMSE margin and decay-prediction error margin, both at least 5 percent better), and `density_pipeline.py`, which refuses to train on the held-out event. The tool therefore returns uncorrected NRLMSIS density, with the reason, by default. To run it: put credentials in `.env`, copy `configs/qnn_events.example.json`, add training storms and satellites, and run `python train_qnn_density.py <config>`. Caveats for that run: the Group 4-7 satellites have no quiet period before the storm, so their ballistic coefficient (Cd*A/m) must be supplied and justified; and TLE mean motion is treated as circular-orbit mean motion, an approximation.
+**QNN density correction: tested on real Space-Track data, did not pass, stays disabled.**
+
+Setup (`configs/qnn_events.json`, `train_qnn_density.py`, summary in `reports/qnn_density_report.json`): the target is the log ratio of decay-derived effective density to NRLMSIS (storm-time mode). Training uses passive rocket bodies (no thrusters hiding drag) from five storms: Sep 2017, Apr 2023, Mar 2024, Oct 2024 and Jan 2026. **May 2024 is the primary held-out storm. Feb 2022 (Starlink Group 4-7) is a quiet-time "do no harm" check across the ballistic band 0.071 to 0.192 m^2/kg and is never trained on.** Objects tracked in a test storm were removed from training: 8 unique objects (10 object-storm pairs), cutting the training samples from 801 to 649. Each number is the mean of 3 seeds, 100 epochs, QNN with 61 parameters beside a same-size MLP with 57. Error is the mean absolute error of the altitude change over each element-set interval of at least 3 hours, starting from the observed altitude.
+
+| Test | n intervals | Uncorrected NRLMSIS | QNN | Same-size MLP |
+|---|---|---|---|---|
+| **May 2024 (held-out)** | 175 | 0.061 km | 0.062 km (-2.3 %) | 0.055 km (+10.2 %) |
+| Leave-one-storm-out, mean of 5 folds | 113 to 184 per fold | | -8.5 % | -0.3 % |
+| LOSO fold: Oct 2024 | 184 | 0.042 km | 0.058 km (-37.0 %) | 0.053 km (-25.7 %) |
+| LOSO fold: Jan 2026 | 172 | 0.053 km | 0.042 km (+21.1 %) | 0.043 km (+18.9 %) |
+| LOSO fold: Sep 2017 | 113 | 0.013 km | 0.015 km (-18.0 %) | 0.014 km (-5.4 %) |
+| LOSO fold: Apr 2023 | 150 | 0.077 km | 0.079 km (-2.6 %) | 0.067 km (+12.8 %) |
+| LOSO fold: Mar 2024 | 182 | 0.021 km | 0.022 km (-6.0 %) | 0.022 km (-2.1 %) |
+| Feb 2022 quiet check, B = 0.071 | 14 | 114.8 km | 49.8 km | 73.9 km |
+| Feb 2022 quiet check, B = 0.125 | 14 | 599.0 km | 398.2 km | 479.5 km |
+| Feb 2022 quiet check, B = 0.192 | 14 | 1421.0 km | 979.1 km | 1166.7 km |
+
+(Percentages are improvement over uncorrected; positive is better.)
+
+**Gates (all must pass; the MLP never counts):** at least 5 % better than uncorrected on May 2024 (**fail**, -2.3 %), at least 5 % better on average across the leave-one-storm-out folds (**fail**, -8.5 %), and no worse than uncorrected on Feb 2022 at both ends of the band (formally pass). **The tool stays disabled.** The QNN did not beat uncorrected NRLMSIS on the held-out storm, and it did worse than the same-size MLP on May 2024 and across the folds. The MLP was 10.2 % better on May 2024, but it is not a gate and was not trained to be deployed; one fold of five (Jan 2026) shows a clear gain for both models and four show losses or near-zero change. No quantum advantage is claimed, and none is seen.
+
+**The Feb 2022 check is not informative, and its "pass" should not be read as evidence.** The errors are hundreds of km because the check is dominated by one object (51470, at 158 to 222 km, near re-entry) whose uncorrected prediction runs away (single-interval errors of 4007, 2007 and 1520 km), plus a 358 km error on the last interval of object 51456. Only 14 intervals qualified. Any correction that lowers density reduces that blow-up, so "no worse" here mostly says the QNN lowers density at low altitude. A robust version of the metric (stop at re-entry, cap or use the median) is a follow-up, and the gates were not changed after seeing these results.
+
+**Limitations:**
+- **Altitude gap:** training objects are at about 280 to 430 km; Group 4-7 was at about 160 to 280 km, outside what the model saw.
+- **Tumbling rocket bodies:** their ballistic coefficient is uncertain and can change over time. Each was estimated from its own pre-storm element sets with NRLMSIS, so it absorbs any density bias.
+- **Feb 2022 data starts after the storm:** the first element sets are 5 Feb 16:10 UTC, so that event can only test quiet-time behaviour. The 0.071 to 0.192 band rests on 2 intervals of 1 object plus an assumed 15 % density uncertainty.
+- **Jan 2026 is recent data** that may be incomplete or revised. It is also the fold where both models gain most.
+- **Small signal:** the per-interval errors are about 0.01 to 0.08 km, comparable to TLE fitting noise, and the targets are noisy. TLE mean motion is treated as circular-orbit mean motion. Seed-to-seed spread is 0.0003 to 0.0046 km.
+- **Single configuration:** one architecture, 100 epochs, learning rate 0.05, no tuning. A different setup might do better; this result only says this one did not pass.
 
 ## Phase 2 (done): real physics and data
 - `helioguard/data/noaa.py`: Kp, Ap and F10.7 from the CelesTrak SW-All file (NOAA/GFZ data), with caching (`data/cache.py`)

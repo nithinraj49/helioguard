@@ -148,14 +148,21 @@ def effective_density_samples(tles: Sequence[TLE], ballistic: float, rho_fn: Rho
 def evaluate_decay_prediction(histories: dict[int, Sequence[TLE]], ballistic: dict[int, float],
                               rho_fn: RhoFn, t0: datetime, sw: Sequence[DailyIndices],
                               onset: datetime, corrector: Corrector | None = None,
-                              dt_s: float = 60.0) -> dict:
+                              dt_s: float = 60.0, min_interval_s: float = 0.0,
+                              decaying_only: bool = False) -> dict:
     """Predict each observed altitude change over each interval, starting from the observed
     altitude, with the reference density (times exp(correction) if a corrector is given).
-    Returns the mean absolute error of the altitude change in km."""
+    Intervals shorter than `min_interval_s` are skipped; with `decaying_only`, so are intervals
+    where the object was observed to rise (thrusting). Returns the mean absolute error of the
+    altitude change in km."""
     errors = []
     for norad, tles in histories.items():
         b_coef = ballistic[norad]
         for a, b in _pairs(tles):
+            if (b.epoch - a.epoch).total_seconds() < min_interval_s:
+                continue
+            if decaying_only and _sma_m(b) >= _sma_m(a):
+                continue
             alt_mid = ((_sma_m(a) + _sma_m(b)) / 2 - R_EARTH) / 1e3
             c = corrector.log_correction(_features(a, b, alt_mid, sw, onset)) if corrector else 0.0
             k = math.exp(c)
@@ -167,6 +174,8 @@ def evaluate_decay_prediction(histories: dict[int, Sequence[TLE]], ballistic: di
                 sma -= rho * b_coef * math.sqrt(MU * sma) * step
                 t += step
             errors.append(abs((sma - _sma_m(b)) / 1e3))
+    if not errors:
+        raise ValueError("no intervals to evaluate")
     return {"mae_km": sum(errors) / len(errors), "n_intervals": len(errors),
             "interval_errors_km": errors}
 

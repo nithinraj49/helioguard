@@ -1,0 +1,22 @@
+{
+  "method": "free-decay intervals of Group 4-7 payloads, NRLMSIS storm-time density",
+  "central_m2_per_kg": 0.1252957719937159,
+  "scatter_band_16_84": [
+    0.08338968378749394,
+    0.16720186019993782
+  ],
+  "total_band_with_assumed_density_uncertainty": [
+    0.07088123121936984,
+    0.19228213922992848
+  ],
+  "assumed_density_uncertainty": 0.15,
+  "n_intervals": 2,
+  "objects_used": [
+    51456
+  ],
+  "per_object_median": {
+    "51456": 0.1252957719937159
+  },
+  "max_kp_during_used_intervals": 3.7,
+  "caveat": "B absorbs any NRLMSIS density bias; the element sets begin after the storm."
+}

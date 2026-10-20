@@ -1,0 +1,289 @@
+{
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "epochs": 100,
+  "training_events": [
+    "storm_2024_10_07",
+    "storm_2026_01_19",
+    "storm_2017_09_07",
+    "storm_2023_04_23",
+    "storm_2024_03_23"
+  ],
+  "heldout": {
+    "may_2024": {
+      "n_intervals": 175,
+      "n_objects": 12,
+      "uncorrected_mae_km": 0.06077934507777116,
+      "qnn_mae_km": 0.06220336598167108,
+      "qnn_mae_std": 0.0034016625456795217,
+      "mlp_mae_km": 0.054559196501030104,
+      "mlp_mae_std": 0.001434671009972823,
+      "qnn_improvement": -0.02342935584576948,
+      "mlp_improvement": 0.10233984207598767
+    }
+  },
+  "quiet_check": {
+    "event": "feb_2022",
+    "by_ballistic": {
+      "low": {
+        "ballistic": 0.07088123121936984,
+        "n_intervals": 14,
+        "n_objects": 17,
+        "uncorrected_mae_km": 114.81676180326619,
+        "qnn_mae_km": 49.79820101284025,
+        "qnn_mae_std": 6.974431258321561,
+        "mlp_mae_km": 73.90254780678602,
+        "mlp_mae_std": 15.310806951761197,
+        "qnn_improvement": 0.5662810879637293,
+        "mlp_improvement": 0.3563435630294556
+      },
+      "central": {
+        "ballistic": 0.1252957719937159,
+        "n_intervals": 14,
+        "n_objects": 17,
+        "uncorrected_mae_km": 598.9980678464805,
+        "qnn_mae_km": 398.1870549850164,
+        "qnn_mae_std": 29.255669564742696,
+        "mlp_mae_km": 479.46815652837637,
+        "mlp_mae_std": 30.46260142842487,
+        "qnn_improvement": 0.335244842413967,
+        "mlp_improvement": 0.19954974437202838
+      },
+      "high": {
+        "ballistic": 0.19228213922992848,
+        "n_intervals": 14,
+        "n_objects": 17,
+        "uncorrected_mae_km": 1421.0313758945015,
+        "qnn_mae_km": 979.0806422348525,
+        "qnn_mae_std": 55.27311017475974,
+        "mlp_mae_km": 1166.7458498867247,
+        "mlp_mae_std": 79.84562340297387,
+        "qnn_improvement": 0.3110070200817718,
+        "mlp_improvement": 0.17894434304640935
+      }
+    }
+  },
+  "loso": {
+    "folds": [
+      {
+        "test_event": "storm_2024_10_07",
+        "train_events": [
+          "storm_2026_01_19",
+          "storm_2017_09_07",
+          "storm_2023_04_23",
+          "storm_2024_03_23"
+        ],
+        "overlap_excluded": {
+          "storm_2026_01_19": [],
+          "storm_2017_09_07": [],
+          "storm_2023_04_23": [],
+          "storm_2024_03_23": [
+            4394,
+            43936
+          ]
+        },
+        "n_train_samples": 588,
+        "n_intervals": 184,
+        "n_objects": 12,
+        "uncorrected_mae_km": 0.04220943618276278,
+        "qnn_mae_km": 0.05784146108257456,
+        "qnn_mae_std": 0.004520232584413976,
+        "mlp_mae_km": 0.053065652384178076,
+        "mlp_mae_std": 0.004638866048046455,
+        "qnn_improvement": -0.3703443190315697,
+        "mlp_improvement": -0.25719879683796126
+      },
+      {
+        "test_event": "storm_2026_01_19",
+        "train_events": [
+          "storm_2024_10_07",
+          "storm_2017_09_07",
+          "storm_2023_04_23",
+          "storm_2024_03_23"
+        ],
+        "overlap_excluded": {
+          "storm_2024_10_07": [],
+          "storm_2017_09_07": [],
+          "storm_2023_04_23": [],
+          "storm_2024_03_23": []
+        },
+        "n_train_samples": 629,
+        "n_intervals": 172,
+        "n_objects": 12,
+        "uncorrected_mae_km": 0.05288875860001264,
+        "qnn_mae_km": 0.041747266661740355,
+        "qnn_mae_std": 0.00343642922116753,
+        "mlp_mae_km": 0.04291005392019392,
+        "mlp_mae_std": 0.001035567198670238,
+        "qnn_improvement": 0.21065897996459346,
+        "mlp_improvement": 0.18867345243033054
+      },
+      {
+        "test_event": "storm_2017_09_07",
+        "train_events": [
+          "storm_2024_10_07",
+          "storm_2026_01_19",
+          "storm_2023_04_23",
+          "storm_2024_03_23"
+        ],
+        "overlap_excluded": {
+          "storm_2024_10_07": [],
+          "storm_2026_01_19": [],
+          "storm_2023_04_23": [],
+          "storm_2024_03_23": []
+        },
+        "n_train_samples": 688,
+        "n_intervals": 113,
+        "n_objects": 8,
+        "uncorrected_mae_km": 0.013030694194508932,
+        "qnn_mae_km": 0.015373935304183765,
+        "qnn_mae_std": 0.0005657682568492052,
+        "mlp_mae_km": 0.013737569058885396,
+        "mlp_mae_std": 0.0007160029163694266,
+        "qnn_improvement": -0.17982473341000227,
+        "mlp_improvement": -0.054246907634002924
+      },
+      {
+        "test_event": "storm_2023_04_23",
+        "train_events": [
+          "storm_2024_10_07",
+          "storm_2026_01_19",
+          "storm_2017_09_07",
+          "storm_2024_03_23"
+        ],
+        "overlap_excluded": {
+          "storm_2024_10_07": [],
+          "storm_2026_01_19": [],
+          "storm_2017_09_07": [],
+          "storm_2024_03_23": [
+            40354,
+            53131
+          ]
+        },
+        "n_train_samples": 619,
+        "n_intervals": 150,
+        "n_objects": 12,
+        "uncorrected_mae_km": 0.07651913060983642,
+        "qnn_mae_km": 0.07853093133105173,
+        "qnn_mae_std": 0.0022733792823487688,
+        "mlp_mae_km": 0.06674297864314169,
+        "mlp_mae_std": 0.0016485126770363235,
+        "qnn_improvement": -0.026291473846890387,
+        "mlp_improvement": 0.1277608865754419
+      },
+      {
+        "test_event": "storm_2024_03_23",
+        "train_events": [
+          "storm_2024_10_07",
+          "storm_2026_01_19",
+          "storm_2017_09_07",
+          "storm_2023_04_23"
+        ],
+        "overlap_excluded": {
+          "storm_2024_10_07": [
+            4394,
+            43936
+          ],
+          "storm_2026_01_19": [],
+          "storm_2017_09_07": [],
+          "storm_2023_04_23": [
+            40354,
+            53131
+          ]
+        },
+        "n_train_samples": 565,
+        "n_intervals": 182,
+        "n_objects": 12,
+        "uncorrected_mae_km": 0.021175579281308903,
+        "qnn_mae_km": 0.022455800522613464,
+        "qnn_mae_std": 0.00034139671141426565,
+        "mlp_mae_km": 0.021616791517804667,
+        "mlp_mae_std": 0.0019172982004019839,
+        "qnn_improvement": -0.06045743657339174,
+        "mlp_improvement": -0.020835899251417864
+      }
+    ],
+    "mean_qnn_improvement": -0.08525179657945213,
+    "mean_mlp_improvement": -0.003169452943521921
+  },
+  "overlap": {
+    "test_objects": 29,
+    "excluded": {
+      "storm_2024_10_07": [
+        4394,
+        43936,
+        57319
+      ],
+      "storm_2026_01_19": [],
+      "storm_2017_09_07": [],
+      "storm_2023_04_23": [],
+      "storm_2024_03_23": [
+        4394,
+        12155,
+        39364,
+        43153,
+        43936,
+        44104,
+        51848
+      ]
+    },
+    "n_object_event_pairs_excluded": 10,
+    "n_unique_objects_excluded": 8
+  },
+  "n_train_samples": 649,
+  "n_train_samples_before_exclusion": 801,
+  "qnn_params": 61,
+  "mlp_params": 57,
+  "gates": {
+    "min_improvement": 0.05,
+    "heldout": {
+      "may_2024": {
+        "improvement": -0.02342935584576948,
+        "pass": false
+      }
+    },
+    "heldout_pass": false,
+    "loso": {
+      "improvements": [
+        -0.3703443190315697,
+        0.21065897996459346,
+        -0.17982473341000227,
+        -0.026291473846890387,
+        -0.06045743657339174
+      ],
+      "mean_improvement": -0.08525179657945213,
+      "pass": false
+    },
+    "loso_pass": false,
+    "quiet": {
+      "low": {
+        "no_worse": true
+      },
+      "central": {
+        "no_worse": true
+      },
+      "high": {
+        "no_worse": true
+      }
+    },
+    "quiet_pass": true,
+    "all_passed": false
+  },
+  "tool_enabled": false,
+  "limitations": [
+    "Altitude gap: training objects are at about 280-430 km; Group 4-7 was at about 160-280 km.",
+    "Rocket bodies tumble, so their ballistic coefficient is uncertain and may change over time.",
+    "Feb 2022 element sets start on 5 Feb, after the storm: it can only test quiet-time behaviour.",
+    "Jan 2026 training data is recent and may be incomplete or revised.",
+    "Ballistic coefficients absorb any NRLMSIS density bias; targets are noisy.",
+    "The Feb 2022 ballistic band rests on 2 intervals of 1 object plus an assumed 15 percent."
+  ],
+  "skipped_objects": {},
+  "post_run_notes": [
+    "The Feb 2022 quiet check is dominated by object 51470 (158-222 km, near re-entry) and the last interval of 51456: uncorrected single-interval errors of 4007, 2007, 1520 and 358 km. Its formal pass is not evidence.",
+    "Gates were not changed after seeing results."
+  ]
+}

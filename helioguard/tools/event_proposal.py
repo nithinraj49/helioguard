@@ -99,14 +99,17 @@ def _event(name: str, storm: StormCandidate, ids: list[int], role: str, ballisti
 def build_config(training: list[tuple[StormCandidate, list[int]]], may_2024: tuple[StormCandidate, list[int]],
                  feb_2022_intdes: str, ballistic_feb_2022: float | None,
                  ballistic_band_feb_2022: tuple[float, float] | None = None) -> dict[str, Any]:
-    """Draft config. Feb 2022 (Group 4-7) is held out; May 2024 is a second test-only storm."""
-    feb = {"name": "feb_2022", "role": "heldout_test", "start": "2022-02-03", "end": "2022-02-12",
+    """Draft config. May 2024 is the primary held-out storm test; Feb 2022 (Group 4-7) is a
+    quiet-time do-no-harm check across the ballistic band and is never trained on."""
+    feb = {"name": "feb_2022", "role": "quiet_check", "start": "2022-02-03", "end": "2022-02-12",
            "onset": "2022-02-03T12:00:00+00:00", "launch_intdes": feb_2022_intdes,
            "ballistic": ballistic_feb_2022,
            "ballistic_band": list(ballistic_band_feb_2022) if ballistic_band_feb_2022 else None}
-    events = [feb, _event("may_2024", *may_2024, role="test_only")]
+    events = [_event("may_2024", *may_2024, role="heldout_test"), feb]
     events += [_event(s.name, s, ids, role="train") for s, ids in training]
-    return {"_comment": "DRAFT for human review. Not yet used for training. Passive objects "
-                        "(rocket bodies) are used for the training and May 2024 storms; "
-                        "ballistic=null means estimate from the pre-storm element sets.",
-            "heldout": "feb_2022", "events": events}
+    return {"_comment": "Reviewed and approved with changes. Roles: heldout_test = primary held-out "
+                        "storm; quiet_check = quiet-time do-no-harm check across the ballistic band; "
+                        "train = training storms (also used for leave-one-storm-out). Passive "
+                        "objects (rocket bodies); ballistic=null means estimate from pre-storm "
+                        "element sets.",
+            "events": events}

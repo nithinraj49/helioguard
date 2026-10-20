@@ -1,0 +1,158 @@
+{
+  "_comment": "Reviewed and approved with changes. Roles: heldout_test = primary held-out storm; quiet_check = quiet-time do-no-harm check across the ballistic band; train = training storms (also used for leave-one-storm-out). Passive objects (rocket bodies); ballistic=null means estimate from pre-storm element sets.",
+  "events": [
+    {
+      "name": "may_2024",
+      "role": "heldout_test",
+      "start": "2024-05-07",
+      "end": "2024-05-14",
+      "onset": "2024-05-10T15:00:00+00:00",
+      "kp_max": 9.0,
+      "ap_max": 400,
+      "norad_ids": [
+        44104,
+        12155,
+        57887,
+        39364,
+        57319,
+        57729,
+        4394,
+        37169,
+        43153,
+        43936,
+        51848,
+        56082
+      ],
+      "ballistic": null
+    },
+    {
+      "name": "feb_2022",
+      "role": "quiet_check",
+      "start": "2022-02-03",
+      "end": "2022-02-12",
+      "onset": "2022-02-03T12:00:00+00:00",
+      "launch_intdes": "2022-010",
+      "ballistic": 0.1252957719937159,
+      "ballistic_band": [
+        0.07088123121936984,
+        0.19228213922992848
+      ]
+    },
+    {
+      "name": "storm_2024_10_07",
+      "role": "train",
+      "start": "2024-10-04",
+      "end": "2024-10-11",
+      "onset": "2024-10-07T00:00:00+00:00",
+      "kp_max": 8.7,
+      "ap_max": 300,
+      "norad_ids": [
+        44820,
+        42994,
+        4394,
+        44496,
+        46811,
+        44425,
+        45858,
+        57319,
+        39195,
+        57423,
+        61445,
+        43936
+      ],
+      "ballistic": null
+    },
+    {
+      "name": "storm_2026_01_19",
+      "role": "train",
+      "start": "2026-01-16",
+      "end": "2026-01-23",
+      "onset": "2026-01-19T18:00:00+00:00",
+      "kp_max": 8.7,
+      "ap_max": 300,
+      "norad_ids": [
+        26960,
+        5118,
+        55691,
+        58401,
+        60210,
+        64230,
+        43521,
+        61440,
+        28222,
+        48427,
+        51659,
+        54039
+      ],
+      "ballistic": null
+    },
+    {
+      "name": "storm_2017_09_07",
+      "role": "train",
+      "start": "2017-09-04",
+      "end": "2017-09-11",
+      "onset": "2017-09-07T21:00:00+00:00",
+      "kp_max": 8.3,
+      "ap_max": 236,
+      "norad_ids": [
+        16111,
+        29053,
+        11822,
+        42796,
+        38249,
+        39454,
+        25723,
+        32477
+      ],
+      "ballistic": null
+    },
+    {
+      "name": "storm_2023_04_23",
+      "role": "train",
+      "start": "2023-04-20",
+      "end": "2023-04-27",
+      "onset": "2023-04-23T15:00:00+00:00",
+      "kp_max": 8.3,
+      "ap_max": 236,
+      "norad_ids": [
+        47232,
+        4814,
+        32290,
+        40354,
+        41620,
+        43101,
+        53131,
+        43851,
+        51101,
+        22447,
+        54044,
+        43739
+      ],
+      "ballistic": null
+    },
+    {
+      "name": "storm_2024_03_23",
+      "role": "train",
+      "start": "2024-03-20",
+      "end": "2024-03-27",
+      "onset": "2024-03-23T21:00:00+00:00",
+      "kp_max": 8.3,
+      "ap_max": 236,
+      "norad_ids": [
+        44104,
+        53131,
+        39364,
+        4394,
+        40354,
+        12155,
+        43153,
+        57536,
+        43936,
+        51848,
+        58659,
+        58930
+      ],
+      "ballistic": null
+    }
+  ]
+}
