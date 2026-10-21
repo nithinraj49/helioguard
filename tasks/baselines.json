@@ -1,0 +1,134 @@
+{
+  "train": [
+    {
+      "policy": "oracle (reads the stored optimum)",
+      "episodes": 1000,
+      "mean_return": 1.094,
+      "mean_final_reward": 1.0,
+      "share_near_optimal": 1.0,
+      "submitted": 1000
+    },
+    {
+      "policy": "rule-based",
+      "episodes": 1000,
+      "mean_return": 0.818,
+      "mean_final_reward": 0.724,
+      "share_near_optimal": 0.0,
+      "submitted": 1000
+    },
+    {
+      "policy": "random",
+      "episodes": 1000,
+      "mean_return": -0.212,
+      "mean_final_reward": -0.212,
+      "share_near_optimal": 0.05,
+      "submitted": 1000
+    },
+    {
+      "policy": "no tools (rule-based plan)",
+      "episodes": 1000,
+      "mean_return": 0.724,
+      "mean_final_reward": 0.724,
+      "share_near_optimal": 0.0,
+      "submitted": 1000
+    },
+    {
+      "policy": "always raise",
+      "episodes": 1000,
+      "mean_return": -1.471,
+      "mean_final_reward": -1.471,
+      "share_near_optimal": 0.0,
+      "submitted": 1000
+    },
+    {
+      "policy": "vague claims",
+      "episodes": 1000,
+      "mean_return": 0.252,
+      "mean_final_reward": 0.724,
+      "share_near_optimal": 0.0,
+      "submitted": 1000
+    },
+    {
+      "policy": "endless tool calls",
+      "episodes": 1000,
+      "mean_return": -1.2,
+      "mean_final_reward": null,
+      "share_near_optimal": 0.0,
+      "submitted": 0
+    },
+    {
+      "policy": "never submits",
+      "episodes": 1000,
+      "mean_return": -1.5,
+      "mean_final_reward": null,
+      "share_near_optimal": 0.0,
+      "submitted": 0
+    }
+  ],
+  "eval": [
+    {
+      "policy": "oracle (reads the stored optimum)",
+      "episodes": 50,
+      "mean_return": 1.1,
+      "mean_final_reward": 1.0,
+      "share_near_optimal": 1.0,
+      "submitted": 50
+    },
+    {
+      "policy": "rule-based",
+      "episodes": 50,
+      "mean_return": 0.837,
+      "mean_final_reward": 0.738,
+      "share_near_optimal": 0.0,
+      "submitted": 50
+    },
+    {
+      "policy": "random",
+      "episodes": 50,
+      "mean_return": -0.228,
+      "mean_final_reward": -0.228,
+      "share_near_optimal": 0.04,
+      "submitted": 50
+    },
+    {
+      "policy": "no tools (rule-based plan)",
+      "episodes": 50,
+      "mean_return": 0.738,
+      "mean_final_reward": 0.738,
+      "share_near_optimal": 0.0,
+      "submitted": 50
+    },
+    {
+      "policy": "always raise",
+      "episodes": 50,
+      "mean_return": -1.516,
+      "mean_final_reward": -1.516,
+      "share_near_optimal": 0.0,
+      "submitted": 50
+    },
+    {
+      "policy": "vague claims",
+      "episodes": 50,
+      "mean_return": 0.24,
+      "mean_final_reward": 0.738,
+      "share_near_optimal": 0.0,
+      "submitted": 50
+    },
+    {
+      "policy": "endless tool calls",
+      "episodes": 50,
+      "mean_return": -1.2,
+      "mean_final_reward": null,
+      "share_near_optimal": 0.0,
+      "submitted": 0
+    },
+    {
+      "policy": "never submits",
+      "episodes": 50,
+      "mean_return": -1.5,
+      "mean_final_reward": null,
+      "share_near_optimal": 0.0,
+      "submitted": 0
+    }
+  ]
+}
