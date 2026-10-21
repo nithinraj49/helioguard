@@ -9,9 +9,12 @@ Plan format (what submit_decision carries):
     {"assets": {asset_id: action}, "launch": {"action": "hold"} | {"action": "deploy", "alt_km": 230}}
 `launch` is present exactly when the task has a planned launch.
 
-Per-action reward: raise infeasible -1; lost: 0.5 * (hours survived / horizon); survives:
-1 + (final altitude - 150 km) / 250 km. Final reward = 1 - gap/scale (1.0 at the optimum, 0 when
-the gap is half a point per decision, floor -1) minus 0.3 per rule violation. No LLM judge.
+Per-action reward, always from simulation: lost: 0.5 * (hours survived / horizon); survives:
+1 + (final altitude - 150 km) / 250 km. Raising is simulated whether or not thrust beats drag:
+with drag above thrust the satellite cannot gain altitude, but thrust can still slow its decay
+(raising beats safe mode until drag is about 1.6x thrust). Final reward = 1 - gap/scale (1.0 at
+the optimum, 0 when the gap is half a point per decision, floor -1) minus 0.3 per rule violation
+(raise in an outage window, two raises in one ground window). No LLM judge.
 """
 from __future__ import annotations
 
@@ -86,9 +89,6 @@ def action_rewards(sc, scen: dict) -> dict[str, float]:
     """Reward of each action for one asset in one storm realisation (see the module docstring)."""
     out: dict[str, float] = {}
     for action, (attitude, thrusting) in ACTIONS.items():
-        if action == RAISE and not can_raise(sc, scen["alt_km"], "raise", 1.0, scen["density_fn"]):
-            out[action] = -1.0
-            continue
         o = simulate(sc, scen["alt_km"], attitude, 1.0, scen["horizon_h"], thrusting=thrusting,
                      density_fn=scen["density_fn"])
         out[action] = (0.5 * o["reentry_hour"] / scen["horizon_h"] if o["reentered"]
@@ -160,14 +160,17 @@ def sample_task(storm: Storm, rng: random.Random, task_id: str, split: str) -> d
 def _fill_physics(task: dict) -> None:
     fns = [density_fn_for(task, s) for s in range(SCENARIOS)]
     assets: dict[str, dict[str, list[float]]] = {}
-    nominal_feasible: dict[str, bool] = {}
+    can_gain: dict[str, bool] = {}
+    slows_decay: dict[str, bool] = {}
     for a in task["fleet"]:
         sc = spacecraft_for(a["thrust_fraction"])
         per_scen = [action_rewards(sc, _scen(a["alt_km"], fns[s])) for s in range(SCENARIOS)]
         assets[a["id"]] = {act: [per_scen[s][act] for s in range(SCENARIOS)] for act in ACTION_NAMES}
-        nominal_feasible[a["id"]] = bool(can_raise(sc, a["alt_km"], "raise", 1.0, fns[0]))
+        can_gain[a["id"]] = bool(can_raise(sc, a["alt_km"], "raise", 1.0, fns[0]))      # thrust > drag now
+        r0 = per_scen[0]                                  # forecast storm: raise outlives the others
+        slows_decay[a["id"]] = r0[RAISE] > max(r0[EDGE_ON], r0[HOLD])
     rewards: dict[str, Any] = {"assets": assets}
-    nominal: dict[str, Any] = {"raise_feasible": nominal_feasible}
+    nominal: dict[str, Any] = {"can_gain_altitude": can_gain, "thrust_slows_decay": slows_decay}
     if task["launch"]:
         t_l = launch_time_h(task)
         launch_rewards: dict[str, list[float]] = {"hold": [HOLD_LAUNCH_REWARD] * SCENARIOS}
@@ -177,7 +180,7 @@ def _fill_physics(task: dict) -> None:
             launch_rewards[str(opt)] = [_launch_reward(opt, shifted[s]) for s in range(SCENARIOS)]
             launch_feasible[str(opt)] = bool(can_raise(STARLINK_LIKE, opt, "raise", 1.0, shifted[0]))
         rewards["launch"] = launch_rewards
-        nominal["launch_raise_feasible"] = launch_feasible
+        nominal["launch_can_gain_altitude"] = launch_feasible
     task["rewards"], task["nominal"] = rewards, nominal
     task["needs_qaoa"] = _needs_qaoa(task)
     task["optimal"] = solve_optimal(task)
@@ -189,8 +192,7 @@ def _needs_qaoa(task: dict) -> bool:
     by_window: dict[int, int] = {}
     for a in task["fleet"]:
         r = task["rewards"]["assets"][a["id"]]
-        wants_raise = (task["nominal"]["raise_feasible"][a["id"]] and
-                       a["window"] not in task["windows"]["outage"] and
+        wants_raise = (a["window"] not in task["windows"]["outage"] and
                        r[RAISE][0] >= max(r[EDGE_ON][0], r[HOLD][0]))
         if wants_raise:
             by_window[a["window"]] = by_window.get(a["window"], 0) + 1
@@ -228,8 +230,6 @@ def _violations(task: dict, assets: dict[str, str]) -> list[str]:
     for a in task["fleet"]:
         if assets[a["id"]] != RAISE:
             continue
-        if not task["nominal"]["raise_feasible"][a["id"]]:
-            out.append(f"infeasible raise {a['id']}: drag exceeds thrust")
         if a["window"] in task["windows"]["outage"]:
             out.append(f"raise {a['id']} in ground window {a['window']} that is out")
         raisers.setdefault(a["window"], []).append(a["id"])
@@ -291,8 +291,8 @@ def _plan_dict(assets: dict[str, str], launch_key: str | None) -> dict[str, Any]
 
 def solve_optimal(task: dict) -> dict[str, Any]:
     """Exact solution (OR-Tools CP-SAT) of: maximise the worst-case total reward over the three
-    storm realisations, subject to the rules (one action per asset, no infeasible raise, no raise
-    in an outage window, at most one raise per ground window)."""
+    storm realisations, subject to the rules (one action per asset, no raise in an outage window,
+    at most one raise per ground window). Raising with drag above thrust is allowed."""
     from ortools.sat.python import cp_model
     S = 1_000_000
     model = cp_model.CpModel()
@@ -303,7 +303,7 @@ def solve_optimal(task: dict) -> dict[str, Any]:
     by_window: dict[int, list[str]] = {}
     for a in task["fleet"]:
         by_window.setdefault(a["window"], []).append(a["id"])
-        if not task["nominal"]["raise_feasible"][a["id"]] or a["window"] in task["windows"]["outage"]:
+        if a["window"] in task["windows"]["outage"]:
             model.Add(x[a["id"], RAISE] == 0)
     for members in by_window.values():
         model.AddAtMostOne(x[i, RAISE] for i in members)
@@ -343,13 +343,14 @@ def random_plan(task: dict, rng: random.Random) -> dict[str, Any]:
 
 
 def rule_based_plan(task: dict) -> dict[str, Any]:
-    """Simple baseline: raise whenever raising is feasible right now and the ground window is
-    free, otherwise safe mode; deploy at the lowest altitude where raising is feasible right now,
-    else hold the launch. It ignores forecast uncertainty and the arrival time of the storm."""
+    """Simple baseline: raise whenever thrust beats drag right now and the ground window is
+    free, otherwise safe mode; deploy at the lowest altitude where thrust beats drag at
+    deployment, else hold the launch. It ignores forecast uncertainty, the arrival time of the
+    storm, and the fact that thrust can slow decay even when it cannot gain altitude."""
     used, assets = set(), {}
     outage = set(task["windows"]["outage"])
     for a in task["fleet"]:
-        if (task["nominal"]["raise_feasible"][a["id"]] and a["window"] not in outage
+        if (task["nominal"]["can_gain_altitude"][a["id"]] and a["window"] not in outage
                 and a["window"] not in used):
             assets[a["id"]] = RAISE
             used.add(a["window"])
@@ -357,8 +358,8 @@ def rule_based_plan(task: dict) -> dict[str, Any]:
             assets[a["id"]] = EDGE_ON
     key = None
     if task["launch"]:
-        feasible = task["nominal"]["launch_raise_feasible"]
-        key = next((str(o) for o in task["launch"]["options_km"] if feasible[str(o)]), "hold")
+        gains = task["nominal"]["launch_can_gain_altitude"]
+        key = next((str(o) for o in task["launch"]["options_km"] if gains[str(o)]), "hold")
     return _plan_dict(assets, key)
 
 

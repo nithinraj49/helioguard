@@ -168,6 +168,38 @@ def test_oracle_plan_scores_one_and_has_no_violations(pool):
         assert s["final_reward"] == pytest.approx(1.0, abs=1e-6) and s["violations"] == []
 
 
+# --- raising with drag above thrust ---------------------------------------------------------------
+def test_nominal_fields_describe_gain_and_decay_separately(pool):
+    for t in pool[:15]:
+        for a in t["fleet"]:
+            r = t["rewards"]["assets"][a["id"]]
+            assert t["nominal"]["thrust_slows_decay"][a["id"]] == (
+                r["raise_orbit"][0] > max(r["safe_mode_edge_on"][0], r["hold"][0]))
+            assert isinstance(t["nominal"]["can_gain_altitude"][a["id"]], bool)
+
+
+def test_raise_with_drag_above_thrust_is_legal_and_valued_by_simulation(pool):
+    seen = False
+    for t in pool:
+        for a in t["fleet"]:
+            if not t["nominal"]["can_gain_altitude"][a["id"]] and a["window"] not in t["windows"]["outage"]:
+                seen = True
+                r = t["rewards"]["assets"][a["id"]]["raise_orbit"]
+                assert min(r) > -1.0                              # a simulated outcome, not a -1 flag
+                plan = {"assets": {x["id"]: "safe_mode_edge_on" for x in t["fleet"]}}
+                plan["assets"][a["id"]] = "raise_orbit"
+                if t["launch"]:
+                    plan["launch"] = {"action": "hold"}
+                assert not any("infeasible" in v for v in score_plan(t, plan)["violations"])
+    assert seen
+
+
+def test_the_optimum_sometimes_raises_although_drag_exceeds_thrust(pool):
+    assert any(t["optimal"]["plan"]["assets"][a["id"]] == "raise_orbit"
+               and not t["nominal"]["can_gain_altitude"][a["id"]]
+               for t in pool for a in t["fleet"])
+
+
 # --- scoring --------------------------------------------------------------------------------------
 def test_reward_falls_with_the_gap_and_rule_breaking_is_penalised(pool):
     t = pool[1]

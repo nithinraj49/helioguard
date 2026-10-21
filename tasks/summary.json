@@ -1,26 +1,26 @@
 {
   "train": {
     "tasks": 1000,
-    "storms": 220,
+    "storms": 240,
     "g_scale": {
-      "G1": 525,
-      "G2": 280,
-      "G3": 135,
-      "G4": 60
+      "G1": 484,
+      "G2": 303,
+      "G3": 143,
+      "G4": 70
     },
-    "with_launch": 753,
-    "needs_qaoa": 768,
-    "assets_per_task": 3.15,
+    "with_launch": 656,
+    "needs_qaoa": 859,
+    "assets_per_task": 3.16,
     "disruptions": {
-      "forecast_error": 505,
-      "storm_stronger": 360,
-      "storm_longer": 437,
-      "thruster_failure": 293,
-      "ground_outage": 275,
-      "launch_slip": 229
+      "forecast_error": 476,
+      "storm_stronger": 347,
+      "storm_longer": 417,
+      "thruster_failure": 304,
+      "ground_outage": 222,
+      "launch_slip": 230
     },
-    "mean_rule_based_final": 0.724,
-    "mean_random_final": -0.182,
+    "mean_rule_based_final": 0.702,
+    "mean_random_final": -0.083,
     "optimum_status": {
       "OPTIMAL": 1000
     }
@@ -30,23 +30,23 @@
     "storms": 28,
     "g_scale": {
       "G1": 27,
-      "G2": 11,
-      "G3": 10,
+      "G2": 10,
+      "G3": 11,
       "G5": 2
     },
-    "with_launch": 34,
-    "needs_qaoa": 41,
-    "assets_per_task": 3.32,
+    "with_launch": 25,
+    "needs_qaoa": 47,
+    "assets_per_task": 3.38,
     "disruptions": {
-      "forecast_error": 23,
-      "storm_stronger": 12,
-      "storm_longer": 23,
-      "thruster_failure": 19,
-      "ground_outage": 9,
-      "launch_slip": 18
+      "forecast_error": 25,
+      "storm_stronger": 17,
+      "storm_longer": 20,
+      "thruster_failure": 15,
+      "ground_outage": 3,
+      "launch_slip": 11
     },
-    "mean_rule_based_final": 0.738,
-    "mean_random_final": -0.19,
+    "mean_rule_based_final": 0.743,
+    "mean_random_final": -0.108,
     "optimum_status": {
       "OPTIMAL": 50
     }

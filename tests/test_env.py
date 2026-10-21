@@ -1,4 +1,5 @@
 """Phase 4 multi-turn environment: prompt, tools, caps, step and final rewards, no LLM judge."""
+import functools
 import json
 import random
 from pathlib import Path
@@ -81,7 +82,9 @@ def test_physics_tools_return_results_through_step(env, tasks):
     out = env.step(call("check_feasibility", asset_id=a, action="raise_orbit"))
     assert isinstance(out, StepOutcome) and not out.done
     res = out.observation["result"]
-    assert {"feasible_now", "feasible_through_storm", "drag_mN", "thrust_mN"} <= set(res)
+    assert {"can_gain_altitude", "can_gain_altitude_through_storm", "thrust_slows_decay",
+            "drag_mN", "thrust_mN"} <= set(res)
+    assert "feasible_now" not in res and "feasible_through_storm" not in res   # the old, misleading words
     out = env.step(call("simulate_decay", asset_id=a, action="safe_mode_edge_on", hours=24))
     assert len(out.observation["result"]["altitudes_km"]) >= 2
     out = env.step(call("min_safe_altitude", asset_id=a))
@@ -179,19 +182,80 @@ def test_malformed_submission_ends_the_episode_with_a_penalty(env, tasks):
     assert out.done and out.reward <= -0.5 and out.info["final"]["error"]
 
 
-def test_ignoring_a_tool_result_is_penalised(tasks):
+def test_raising_against_thrust_slows_decay_false_is_penalised(tasks):
     for t in tasks:
         for a in t["fleet"]:
             e = HelioGuardEnv(tasks, seed=0)
             e.reset(task_id=t["id"])
             res = e.step(call("check_feasibility", asset_id=a["id"], action="raise_orbit")).observation["result"]
-            if res["feasible_now"] is False and a["window"] not in t["windows"]["outage"]:
+            if res["thrust_slows_decay"] is False and a["window"] not in t["windows"]["outage"]:
                 plan = oracle_plan(t)
-                plan["assets"][a["id"]] = "raise_orbit"               # raise despite the tool saying no
+                plan["assets"][a["id"]] = "raise_orbit"               # raise although it does not slow decay
                 out = e.step({"type": "submit_decision", **plan})
                 assert any("ignored" in p for p in out.info["final"]["penalties"])
                 return
-    pytest.skip("no infeasible raise in this sample")
+    pytest.skip("no raise that fails to slow decay in this sample")
+
+
+@functools.lru_cache(maxsize=1)
+def extra_tasks():
+    """A larger fixed sample (60 tasks), for tests that need a rarer situation."""
+    rows = load_space_weather(FIX / "sw_feb2022.csv") + load_space_weather(FIX / "sw_may2024.csv")
+    storms = storm_catalog(rows, min_kp=5.0)
+    return tuple(sample_task(storms[i % len(storms)], random.Random(500 + i), f"x{i}", "train")
+                 for i in range(60))
+
+
+def test_drag_above_thrust_alone_is_not_penalised_when_raising_still_slows_decay(tasks):
+    """The tool says it cannot gain altitude but thrust slows decay: raising must not be punished."""
+    tasks = list(tasks) + list(extra_tasks())
+    for t in tasks:
+        for a in t["fleet"]:
+            e = HelioGuardEnv(tasks, seed=0)
+            e.reset(task_id=t["id"])
+            res = e.step(call("check_feasibility", asset_id=a["id"], action="raise_orbit")).observation["result"]
+            if (res["can_gain_altitude"] is False and res["thrust_slows_decay"] is True
+                    and a["window"] not in t["windows"]["outage"]):
+                plan = {"assets": {x["id"]: "safe_mode_edge_on" for x in t["fleet"]}}
+                plan["assets"][a["id"]] = "raise_orbit"
+                if t["launch"]:
+                    plan["launch"] = {"action": "hold"}
+                out = e.step({"type": "submit_decision", **plan})
+                assert not any("ignored" in p for p in out.info["final"]["penalties"])
+                assert not any("infeasible" in v for v in out.info["final"]["violations"])
+                return
+    pytest.skip("no such asset in this sample")
+
+
+def find_task_where_optimum_raises_with_drag_above_thrust(tasks):
+    for t in tasks:
+        for a in t["fleet"]:
+            if (t["optimal"]["plan"]["assets"][a["id"]] == "raise_orbit"
+                    and not t["nominal"]["can_gain_altitude"][a["id"]]):
+                return t
+    return None
+
+
+def test_optimal_trace_with_drag_above_thrust_gets_no_step_penalty_and_rewards_agree(tasks):
+    t = find_task_where_optimum_raises_with_drag_above_thrust(tasks)
+    if t is None:                                    # look in a larger, fixed sample
+        tasks = list(extra_tasks())
+        t = find_task_where_optimum_raises_with_drag_above_thrust(tasks)
+    assert t is not None, "the stored optimum never raises with drag above thrust in this sample"
+    env = HelioGuardEnv(tasks)
+    env.reset(task_id=t["id"])
+    step_rewards = []
+    for a in t["fleet"]:
+        out = env.step(call("check_feasibility", asset_id=a["id"], action="raise_orbit"))
+        step_rewards.append(out.reward)
+        if t["optimal"]["plan"]["assets"][a["id"]] == "raise_orbit" and not t["nominal"]["can_gain_altitude"][a["id"]]:
+            assert out.observation["result"]["can_gain_altitude"] is False        # cannot gain altitude ...
+            assert out.observation["result"]["thrust_slows_decay"] is True        # ... but raising still pays
+    final = env.step(submit(t))
+    assert all(r >= 0 for r in step_rewards)                                       # no step penalty
+    assert final.info["final"]["penalties"] == [] and final.info["final"]["violations"] == []
+    assert sum(step_rewards) > 0 and final.reward > 0                              # same sign
+    assert final.reward == pytest.approx(1.0, abs=1e-6)
 
 
 # --- step rewards (verifier, no LLM judge) ---------------------------------------------------------
@@ -221,12 +285,20 @@ def test_correct_claims_are_rewarded_wrong_or_repeated_ones_are_not(env, tasks):
     env.reset(task_id=t["id"])
     a = t["fleet"][0]["id"]
     truth = env.step(call("check_feasibility", asset_id=a, action="raise_orbit")).observation["result"]
-    claim = {"type": "claim_feasibility", "asset_id": a, "action": "raise_orbit", "when": "now",
-             "feasible": truth["feasible_now"]}
+    claim = {"type": "claim_can_gain_altitude", "asset_id": a, "when": "now",
+             "can_gain_altitude": truth["can_gain_altitude"]}
     good = env.step(claim)
     again = env.step(claim)
-    wrong = env.step({**claim, "action": "hold", "feasible": False})
-    assert good.reward > 0 and again.reward <= 0 and wrong.reward < 0
+    wrong = env.step({"type": "claim_thrust_slows_decay", "asset_id": a,
+                      "thrust_slows_decay": not truth["thrust_slows_decay"]})
+    other = t["fleet"][-1]["id"]                    # a different question gets its own reward
+    other_truth = env.step(call("check_feasibility", asset_id=other, action="raise_orbit")).observation["result"]
+    right = env.step({"type": "claim_thrust_slows_decay", "asset_id": other,
+                      "thrust_slows_decay": other_truth["thrust_slows_decay"]})
+    flipped = env.step({"type": "claim_thrust_slows_decay", "asset_id": other,
+                        "thrust_slows_decay": not other_truth["thrust_slows_decay"]})
+    assert good.reward > 0 and again.reward <= 0 and wrong.reward < 0 and right.reward > 0
+    assert flipped.reward <= 0                       # re-asking the same question earns nothing
 
 
 def test_vague_decay_predictions_are_not_rewarded(env, tasks):

@@ -34,7 +34,8 @@ class EnvVerifier(VerifierBase):
     def __init__(self) -> None:
         super().__init__()
         self.add_rule("tool_call", self._tool_call)
-        self.add_rule("claim_feasibility", self._claim_feasibility)
+        self.add_rule("claim_can_gain_altitude", self._claim_can_gain_altitude)
+        self.add_rule("claim_thrust_slows_decay", self._claim_thrust_slows_decay)
         self.add_rule("claim_decay", self._claim_decay)
 
     @staticmethod
@@ -55,16 +56,26 @@ class EnvVerifier(VerifierBase):
         return False, "the density correction is disabled, so it adds nothing"
 
     @staticmethod
-    def _claim_feasibility(step: dict, ctx: tuple[FleetToolbox, EpisodeMemory]) -> tuple[bool, str]:
+    def _claim_can_gain_altitude(step: dict, ctx: tuple[FleetToolbox, EpisodeMemory]) -> tuple[bool, str]:
+        """Claim that thrust exceeds drag for a raise, now or at the forecast storm peak."""
         box, _ = ctx
-        truth = box.feasibility(step["asset_id"], step["action"])
+        truth = box.feasibility(step["asset_id"], "raise_orbit")
         when = step["when"]
         if when not in ("now", "through_storm"):
             raise ValueError("when must be 'now' or 'through_storm'")
-        key = "feasible_now" if when == "now" else "feasible_through_storm"
-        if not isinstance(step["feasible"], bool):
-            raise ValueError("feasible must be true or false")
-        return step["feasible"] == truth[key], f"{when}: physics says {truth[key]}"
+        key = "can_gain_altitude" if when == "now" else "can_gain_altitude_through_storm"
+        if not isinstance(step["can_gain_altitude"], bool):
+            raise ValueError("can_gain_altitude must be true or false")
+        return step["can_gain_altitude"] == truth[key], f"{when}: physics says {truth[key]}"
+
+    @staticmethod
+    def _claim_thrust_slows_decay(step: dict, ctx: tuple[FleetToolbox, EpisodeMemory]) -> tuple[bool, str]:
+        """Claim that raising outlives safe mode and hold in the forecast storm."""
+        box, _ = ctx
+        if not isinstance(step["thrust_slows_decay"], bool):
+            raise ValueError("thrust_slows_decay must be true or false")
+        truth = box.thrust_slows_decay(step["asset_id"])
+        return step["thrust_slows_decay"] == truth, f"physics says {truth}"
 
     @staticmethod
     def _claim_decay(step: dict, ctx: tuple[FleetToolbox, EpisodeMemory]) -> tuple[bool, str]:

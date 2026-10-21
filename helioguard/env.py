@@ -5,7 +5,8 @@ agent may call tools, make verifiable claims, and ends the episode with submit_d
 
 Actions (dicts):
   {"type": "tool_call", "name": ..., "arguments": {...}}
-  {"type": "claim_feasibility", "asset_id", "action", "when": "now"|"through_storm", "feasible": bool}
+  {"type": "claim_can_gain_altitude", "asset_id", "when": "now"|"through_storm", "can_gain_altitude": bool}
+  {"type": "claim_thrust_slows_decay", "asset_id", "thrust_slows_decay": bool}
   {"type": "claim_decay", "asset_id", "action", "hours", "altitude_loss_km"}
   {"type": "submit_decision", "assets": {id: action}, "launch": {...}}     (ends the episode)
 
@@ -15,8 +16,9 @@ Rewards (no LLM judge; all from physics and the exact solver):
   claim:        +0.10 if true, -0.10 if false, -0.05 if repeated. Claims only get a true/false answer.
   malformed or unknown action: -0.05.
   submit:       the final reward from tasks.score_plan (1.0 at the exact optimum, falling with the
-                gap, -0.3 per rule violation) minus 0.2 for each raise ordered against a tool result
-                that said it was infeasible. A malformed submission ends the episode at -0.5.
+                gap, -0.3 per rule violation) minus 0.2 for each raise ordered although check_feasibility
+                said thrust_slows_decay is false. Drag above thrust alone is not penalised: raising
+                can still be the best choice. A malformed submission ends the episode at -0.5.
   no submission within max_turns: -0.5 and the episode ends.
 HelioGuard recommends; humans decide.
 """
@@ -89,7 +91,8 @@ def render_prompt(task: dict, tool_specs: Sequence[dict]) -> str:
     lines += ["", "Tools (call with {\"type\": \"tool_call\", \"name\": ..., \"arguments\": {...}}):"]
     for s in tool_specs:
         lines.append(f"  {s['name']}: {s['description']}")
-    lines += ["", "You may also state checkable claims (claim_feasibility, claim_decay). Finish with "
+    lines += ["", "You may also state checkable claims (claim_can_gain_altitude, claim_thrust_slows_decay, "
+                  "claim_decay). Finish with "
                   "{\"type\": \"submit_decision\", \"assets\": {id: action, ...}" +
               (", \"launch\": {\"action\": \"hold\"} or {\"action\": \"deploy\", \"alt_km\": N}" if task["launch"] else "") +
               "}. Tool calls are limited and each costs a little."]
@@ -139,7 +142,7 @@ class HelioGuardEnv(EnvBase):
         kind = action.get("type") if isinstance(action, dict) else None
         if kind == "tool_call":
             out = self._tool_call(action, box)
-        elif kind in ("claim_feasibility", "claim_decay"):
+        elif kind in ("claim_can_gain_altitude", "claim_thrust_slows_decay", "claim_decay"):
             out = self._claim(action, kind, box)
         elif kind == "submit_decision":
             return self._submit(action)
@@ -193,7 +196,7 @@ class HelioGuardEnv(EnvBase):
                            {"timeout": False, "useful": bool(ok)})
 
     def _claim(self, a: dict, kind: str, box: FleetToolbox) -> StepOutcome:
-        key = json.dumps({k: v for k, v in a.items() if k not in ("feasible", "altitude_loss_km")},
+        key = json.dumps({k: v for k, v in a.items() if k not in ("can_gain_altitude", "thrust_slows_decay", "altitude_loss_km")},
                          sort_keys=True, default=str)
         verdict = self.verifier.score_step(a, (box, self._memory))
         if key in self._memory.claims:
@@ -218,8 +221,9 @@ class HelioGuardEnv(EnvBase):
         penalties = list(score["violations"])
         for asset_id, action in plan["assets"].items():
             seen = self._memory.feasibility_seen.get((asset_id, "raise_orbit"))
-            if action == "raise_orbit" and seen is not None and not seen["feasible_now"]:
-                penalties.append(f"ignored tool result: raised {asset_id} although check_feasibility said it is infeasible")
+            if action == "raise_orbit" and seen is not None and not seen["thrust_slows_decay"]:
+                penalties.append(f"ignored tool result: raised {asset_id} although check_feasibility "
+                                 f"said thrust does not slow its decay")
         ignored = sum(p.startswith("ignored") for p in penalties)
         final_reward = score["final_reward"] - IGNORED_RESULT_PENALTY * ignored
         final = {**score, "penalties": penalties, "final_reward": final_reward, "error": None}

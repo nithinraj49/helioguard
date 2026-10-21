@@ -49,33 +49,35 @@ HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb
 
 **Episode.** `reset()` returns a briefing: fleet, storm forecast with its uncertainty, ground windows, an optional planned launch, and the disruptions in force. The agent can call the five tools (`simulate_decay`, `check_feasibility`, `min_safe_altitude`, `qaoa_schedule`, and `qnn_density_correction`, which works while disabled and returns the plain density with its reason), state checkable claims, and end with `submit_decision`. Tool calls are capped at 10 and turns at 20.
 
-**Rewards (no LLM judge).** Step rewards come from the verifier: a new, useful tool call +0.05, minus a cost per call (0.02, and 0.10 for QAOA, which only counts as useful when assets compete for a ground window); invalid or duplicate calls -0.05; a true claim +0.10, a false one -0.10 (a claim must be within 10 percent or 0.5 km of the physics, so vague predictions fail); raising against a tool result that said it was infeasible -0.20. The final reward comes from the gap to the exact optimum (OR-Tools CP-SAT) of the worst-case total over three storm realisations (forecast, stronger, longer): 1.0 at the optimum, 0 when the gap is half a point per decision, floor -1, and -0.3 per rule violation (infeasible raise, raise in an outage window, two raises in one ground window). A malformed submission ends the episode at -0.5, and so does running out of turns without submitting.
+**Raising and `check_feasibility`.** The tool returns two separate fields. `can_gain_altitude` is thrust above drag (now, and at the forecast storm peak). `thrust_slows_decay` is whether raising outlives both safe mode and hold in simulation. They can disagree: raising beats safe mode until drag is about 1.6x thrust, so the optimum sometimes raises although the satellite cannot climb. Raising is therefore always a legal action, valued by simulation; only `thrust_slows_decay = false` followed by a raise is penalised. Claims use the same two names (`claim_can_gain_altitude`, `claim_thrust_slows_decay`). A test (`test_optimal_trace_with_drag_above_thrust_gets_no_step_penalty_and_rewards_agree`) takes a task whose stored optimum raises with drag above thrust and checks that the optimal trace has no penalty and that step and final rewards are both positive.
+
+**Rewards (no LLM judge).** Step rewards come from the verifier: a new, useful tool call +0.05, minus a cost per call (0.02, and 0.10 for QAOA, which only counts as useful when assets compete for a ground window); invalid or duplicate calls -0.05; a true claim +0.10, a false one -0.10 (a claim must be within 10 percent or 0.5 km of the physics, so vague predictions fail); raising an asset although `check_feasibility` said `thrust_slows_decay` is false -0.20. The final reward comes from the gap to the exact optimum (OR-Tools CP-SAT) of the worst-case total over three storm realisations (forecast, stronger, longer): 1.0 at the optimum, 0 when the gap is half a point per decision, floor -1, and -0.3 per rule violation (raise in an outage window, two raises in one ground window). A malformed submission ends the episode at -0.5, and so does running out of turns without submitting.
 
 **Tasks.** Each task is built from a real storm (Kp series since 1996) with random fleets, altitudes near the point where raising stops working, and 0 to 3 disruptions from: forecast error, storm stronger, storm longer, thruster failure, ground-station outage, launch slip. Each task stores its exact optimum. Tasks the simple rule-based policy already solves (final reward 0.9 or more) were filtered out. A storm is in exactly one split; Feb 2022 and May 2024 are eval storms. Regenerate with `python scripts/generate_tasks.py`.
 
 | | Train | Eval |
 |---|---|---|
 | Tasks | 1,000 | 50 |
-| Storms | 220 | 28 |
-| Storm class (G1 / G2 / G3 / G4 / G5) | 525 / 280 / 135 / 60 / 0 | 27 / 11 / 10 / 0 / 2 |
-| With a planned launch | 753 | 34 |
-| Assets contend for a ground window (QAOA relevant) | 768 | 41 |
+| Storms | 240 | 28 |
+| Storm class (G1 / G2 / G3 / G4 / G5) | 484 / 303 / 143 / 70 / 0 | 27 / 10 / 11 / 0 / 2 |
+| With a planned launch | 656 | 25 |
+| Assets contend for a ground window (QAOA relevant) | 859 | 47 |
 | Optimum proven optimal by CP-SAT | 1,000 | 50 |
 
-**Baseline scores** (`python scripts/evaluate_baselines.py`, `tasks/baselines.json`). Return is the episode total; final is the end-of-episode reward. The rule-based policy raises whenever raising is feasible right now and the window is free, otherwise safe mode, and deploys at the lowest altitude where raising is feasible at deployment; by construction it is not near-optimal on these tasks, so its score is a floor, not a typical result. The oracle reads the stored optimum and is an upper bound.
+**Baseline scores** (`python scripts/evaluate_baselines.py`, `tasks/baselines.json`). Return is the episode total; final is the end-of-episode reward. The rule-based policy raises whenever `can_gain_altitude` is true and the window is free, otherwise safe mode, and deploys at the lowest altitude where raising can gain altitude at deployment; by construction it is not near-optimal on these tasks, so its score is a floor, not a typical result. The oracle reads the stored optimum and is an upper bound.
 
 | Policy | Train return | Train final | Eval return | Eval final |
 |---|---|---|---|---|
-| Oracle (upper bound) | +1.094 | +1.000 | +1.100 | +1.000 |
-| Rule-based | +0.818 | +0.724 | +0.837 | +0.738 |
-| Same plan, no tool calls | +0.724 | +0.724 | +0.738 | +0.738 |
-| Random | -0.212 | -0.212 | -0.228 | -0.228 |
-| Always raise | -1.471 | -1.471 | -1.516 | -1.516 |
-| Vague claims, then the rule-based plan | +0.252 | +0.724 | +0.240 | +0.738 |
+| Oracle (upper bound) | +1.095 | +1.000 | +1.101 | +1.000 |
+| Rule-based | +0.782 | +0.687 | +0.828 | +0.727 |
+| Same plan, no tool calls | +0.702 | +0.702 | +0.743 | +0.743 |
+| Random | -0.059 | -0.059 | -0.170 | -0.170 |
+| Always raise | -1.332 | -1.332 | -1.353 | -1.353 |
+| Vague claims, then the rule-based plan | +0.228 | +0.702 | +0.236 | +0.743 |
 | Endless tool calls, never decides | -1.200 | none | -1.200 | none |
 | Never submits | -1.500 | none | -1.500 | none |
 
-**Loophole tests** (`tests/test_env_loopholes.py`): always-raise, never calling tools, endless tool calls, never submitting, vague predictions, random play and farming step rewards each lose reward against the proper policies. **Limits:** the Kp-to-density mapping and spacecraft are illustrative; tasks use the reference atmosphere with a storm profile (not NRLMSIS replays, for speed); raising is judged feasible at the start of a burn, with the storm effect captured by the simulation; the `qnn_density_correction` tool returns the reference-atmosphere density because the correction is disabled (Phase 3); the optimum is for the three modelled storm realisations, not every possible storm.
+**Loophole tests** (`tests/test_env_loopholes.py`): always-raise, never calling tools, endless tool calls, never submitting, vague predictions, random play and farming step rewards each lose reward against the proper policies. **Limits:** the Kp-to-density mapping and spacecraft are illustrative; tasks use the reference atmosphere with a storm profile (not NRLMSIS replays, for speed); `can_gain_altitude` is judged at the start of a burn and at the forecast peak, while the value of raising comes from the simulation; the rule-based policy with tools scores slightly below the same plan without tools because it follows its rule even after `thrust_slows_decay` says false and takes the 0.20 penalty; the `qnn_density_correction` tool returns the reference-atmosphere density because the correction is disabled (Phase 3); the optimum is for the three modelled storm realisations, not every possible storm.
 
 ## Phase 3 (done): tools
 Five tools on the engine `Tool` protocol, in `helioguard/tools/`. Spacecraft values are illustrative. HelioGuard recommends; humans decide.

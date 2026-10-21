@@ -12,7 +12,7 @@ from .atmosphere import density as reference_density
 from .physics import drag_force
 from .scenarios import STARLINK_LIKE
 from .storms import Storm, StormProfile
-from .tasks import (ACTION_NAMES, HORIZON_H, RAISE, _scen, action_rewards, density_fn_for,
+from .tasks import (ACTION_NAMES, EDGE_ON, HOLD, HORIZON_H, RAISE, _scen, action_rewards, density_fn_for,
                     spacecraft_for)
 from .tools.physics_tools import CheckFeasibility, SimulateDecay
 from .tools.qaoa_schedule import NOTE, build_qubo, solve_exact, solve_ortools, solve_qaoa
@@ -55,17 +55,26 @@ class FleetToolbox:
         return max(drag_force(a["alt_km"], sc.area_m2["raise"], sc.cd, 1.0, fn, float(h))
                    for h in range(0, HORIZON_H + 1)) * 1e3
 
+    def thrust_slows_decay(self, asset_id: str) -> bool:
+        """From simulation in the forecast storm: does raising outlive safe mode and hold?"""
+        r = action_rewards(self.spacecraft(asset_id), self.scen(asset_id))
+        return bool(r[RAISE] > max(r[EDGE_ON], r[HOLD]))
+
     def feasibility(self, asset_id: str, action: str) -> dict[str, Any]:
+        """Two separate questions about raising, which can disagree:
+        can_gain_altitude: thrust > drag (now, and at the forecast storm peak);
+        thrust_slows_decay: raising outlives safe mode and hold in simulation. With drag above
+        thrust the satellite cannot climb, yet raising can still be the best choice."""
         a = self.asset(asset_id)
         base = CheckFeasibility(self.spacecraft(asset_id), self.scen(asset_id)).run(action)
-        through = True
-        peak = base["drag_mN"]
-        if action == RAISE:
-            peak = self.peak_drag_mN(asset_id)
-            through = base["thrust_mN"] > peak
-        return {"asset_id": asset_id, "action": action, "feasible_now": base["feasible"],
-                "feasible_through_storm": bool(through), "drag_mN": base["drag_mN"],
-                "peak_drag_mN": peak, "thrust_mN": base["thrust_mN"], "ground_window": a["window"],
+        raising = action == RAISE
+        peak = self.peak_drag_mN(asset_id) if raising else base["drag_mN"]
+        return {"asset_id": asset_id, "action": action,
+                "can_gain_altitude": bool(base["feasible"]) if raising else False,
+                "can_gain_altitude_through_storm": bool(base["thrust_mN"] > peak) if raising else False,
+                "thrust_slows_decay": self.thrust_slows_decay(asset_id) if raising else False,
+                "drag_mN": base["drag_mN"], "peak_drag_mN": peak, "thrust_mN": base["thrust_mN"],
+                "ground_window": a["window"],
                 "ground_window_available": a["window"] not in self.task["windows"]["outage"]}
 
     def decay(self, asset_id: str, action: str, hours: float) -> dict[str, Any]:
@@ -97,8 +106,10 @@ class _SimulateDecay(_Base):
 
 class _CheckFeasibility(_Base):
     name = "check_feasibility"
-    description = ("Whether an action is possible for one asset: thrust versus drag in mN, now and "
-                   "at the forecast storm peak, and whether its ground window is available.")
+    description = ("For one asset: can_gain_altitude (thrust above drag, now and at the forecast storm "
+                   "peak, with both forces in mN) and thrust_slows_decay (raising outlives safe mode and "
+                   "hold in simulation). They can disagree: with drag above thrust a satellite cannot "
+                   "climb, yet raising can still be best. Also whether its ground window is available.")
     schema = {"type": "object",
               "properties": {"asset_id": {"type": "string"}, "action": ACTION_ENUM},
               "required": ["asset_id", "action"]}
