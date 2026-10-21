@@ -44,7 +44,40 @@ Domain-free package shared with the Navigator project; a test fails if it ever m
 
 HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
 
-## Phase 3 (done, with one open item): tools
+## Phase 4 (done): multi-turn RL environment
+`helioguard/env.py` (`HelioGuardEnv`, on the engine `EnvBase`), with `env_tools.py`, `env_verifier.py`, `tasks.py`, `storms.py`, `policies.py`. Spacecraft, altitudes and the Kp-to-density mapping are illustrative; storm dates and Kp series are real. HelioGuard recommends; humans decide.
+
+**Episode.** `reset()` returns a briefing: fleet, storm forecast with its uncertainty, ground windows, an optional planned launch, and the disruptions in force. The agent can call the five tools (`simulate_decay`, `check_feasibility`, `min_safe_altitude`, `qaoa_schedule`, and `qnn_density_correction`, which works while disabled and returns the plain density with its reason), state checkable claims, and end with `submit_decision`. Tool calls are capped at 10 and turns at 20.
+
+**Rewards (no LLM judge).** Step rewards come from the verifier: a new, useful tool call +0.05, minus a cost per call (0.02, and 0.10 for QAOA, which only counts as useful when assets compete for a ground window); invalid or duplicate calls -0.05; a true claim +0.10, a false one -0.10 (a claim must be within 10 percent or 0.5 km of the physics, so vague predictions fail); raising against a tool result that said it was infeasible -0.20. The final reward comes from the gap to the exact optimum (OR-Tools CP-SAT) of the worst-case total over three storm realisations (forecast, stronger, longer): 1.0 at the optimum, 0 when the gap is half a point per decision, floor -1, and -0.3 per rule violation (infeasible raise, raise in an outage window, two raises in one ground window). A malformed submission ends the episode at -0.5, and so does running out of turns without submitting.
+
+**Tasks.** Each task is built from a real storm (Kp series since 1996) with random fleets, altitudes near the point where raising stops working, and 0 to 3 disruptions from: forecast error, storm stronger, storm longer, thruster failure, ground-station outage, launch slip. Each task stores its exact optimum. Tasks the simple rule-based policy already solves (final reward 0.9 or more) were filtered out. A storm is in exactly one split; Feb 2022 and May 2024 are eval storms. Regenerate with `python scripts/generate_tasks.py`.
+
+| | Train | Eval |
+|---|---|---|
+| Tasks | 1,000 | 50 |
+| Storms | 220 | 28 |
+| Storm class (G1 / G2 / G3 / G4 / G5) | 525 / 280 / 135 / 60 / 0 | 27 / 11 / 10 / 0 / 2 |
+| With a planned launch | 753 | 34 |
+| Assets contend for a ground window (QAOA relevant) | 768 | 41 |
+| Optimum proven optimal by CP-SAT | 1,000 | 50 |
+
+**Baseline scores** (`python scripts/evaluate_baselines.py`, `tasks/baselines.json`). Return is the episode total; final is the end-of-episode reward. The rule-based policy raises whenever raising is feasible right now and the window is free, otherwise safe mode, and deploys at the lowest altitude where raising is feasible at deployment; by construction it is not near-optimal on these tasks, so its score is a floor, not a typical result. The oracle reads the stored optimum and is an upper bound.
+
+| Policy | Train return | Train final | Eval return | Eval final |
+|---|---|---|---|---|
+| Oracle (upper bound) | +1.094 | +1.000 | +1.100 | +1.000 |
+| Rule-based | +0.818 | +0.724 | +0.837 | +0.738 |
+| Same plan, no tool calls | +0.724 | +0.724 | +0.738 | +0.738 |
+| Random | -0.212 | -0.212 | -0.228 | -0.228 |
+| Always raise | -1.471 | -1.471 | -1.516 | -1.516 |
+| Vague claims, then the rule-based plan | +0.252 | +0.724 | +0.240 | +0.738 |
+| Endless tool calls, never decides | -1.200 | none | -1.200 | none |
+| Never submits | -1.500 | none | -1.500 | none |
+
+**Loophole tests** (`tests/test_env_loopholes.py`): always-raise, never calling tools, endless tool calls, never submitting, vague predictions, random play and farming step rewards each lose reward against the proper policies. **Limits:** the Kp-to-density mapping and spacecraft are illustrative; tasks use the reference atmosphere with a storm profile (not NRLMSIS replays, for speed); raising is judged feasible at the start of a burn, with the storm effect captured by the simulation; the `qnn_density_correction` tool returns the reference-atmosphere density because the correction is disabled (Phase 3); the optimum is for the three modelled storm realisations, not every possible storm.
+
+## Phase 3 (done): tools
 Five tools on the engine `Tool` protocol, in `helioguard/tools/`. Spacecraft values are illustrative. HelioGuard recommends; humans decide.
 
 | Tool | What it does | Tested against |
