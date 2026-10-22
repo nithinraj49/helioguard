@@ -85,3 +85,52 @@ def test_helioguard_qubo_is_numerically_identical_to_before_the_move():
     exact = old.solve_exact(q)
     assert exact["assignment"] == GOLDEN_EXACT[0] and exact["energy"] == pytest.approx(GOLDEN_EXACT[1])
     assert old.solve_ortools(REWARDS, WINDOWS)["assignment"] == GOLDEN_EXACT[0]
+
+
+# --- QAOA in the engine (optional "quantum" extra) --------------------------------------------
+GOLDEN_QAOA = {"assignment": ["raise_orbit", "safe_mode_edge_on", "safe_mode_edge_on"], "feasible": True,
+               "objective": 2.65, "x": [1, 0, 0, 0, 1, 0, 0, 1, 0], "energy": -2.6499999999999986,
+               "expected_energy": 2.6861832403916432, "optimum_probability": 0.008551808618467643,
+               "approx_ratio": 0.5047625762977594, "n_qubits": 9, "layers": 2, "simulator": "lightning.qubit",
+               "evaluations": 269}
+
+
+def test_qaoa_result_is_identical_before_and_after_the_move():
+    from verispace_engine.qaoa import solve_qaoa
+    q = old.build_qubo(REWARDS, WINDOWS)
+    for fn in (solve_qaoa, old.solve_qaoa):
+        out = fn(q, layers=2)
+        out.pop("solve_time_s")
+        assert out == pytest.approx(GOLDEN_QAOA)
+
+
+def test_helioguard_keeps_the_old_name_as_an_alias():
+    from verispace_engine.qaoa import solve_qaoa
+    assert old.solve_qaoa is solve_qaoa
+
+
+def test_engine_imports_without_pennylane_and_errors_clearly_when_used(tmp_path):
+    import subprocess
+    import sys
+    code = ("import sys\n"
+            "sys.modules['pennylane'] = None\n"                  # makes `import pennylane` raise ImportError
+            "import verispace_engine, verispace_engine.qubo, verispace_engine.qaoa as q\n"
+            "import verispace_engine.harness\n"
+            "assert 'pennylane' not in [m for m in sys.modules if sys.modules[m] is not None]\n"
+            "try:\n"
+            "    q.solve_qaoa(None)\n"
+            "except ImportError as e:\n"
+            "    assert 'pennylane' in str(e) and 'quantum' in str(e), e\n"
+            "else:\n"
+            "    raise SystemExit('no error')\n")
+    run = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True,
+                         cwd=str(__import__("pathlib").Path(__file__).parent.parent))
+    assert run.returncode == 0, run.stderr
+
+
+def test_pyproject_has_an_optional_quantum_extra():
+    import tomllib
+    from pathlib import Path
+    extras = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]
+    assert any(d.startswith("pennylane") for d in extras["quantum"])
+    assert "quantum" not in str(tomllib.loads(Path("pyproject.toml").read_text())["project"].get("dependencies", ""))

@@ -8,6 +8,7 @@ dependencies = ["pydantic>=2", "numpy", "pymsis>=0.13", "sgp4"]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 tools = ["pennylane>=0.40", "pennylane-lightning", "ortools", "torch"]
+quantum = ["pennylane>=0.40", "pennylane-lightning", "scipy"]
 harness = ["transformers", "requests", "torch"]
 
 [build-system]
