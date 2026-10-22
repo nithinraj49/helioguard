@@ -8,13 +8,14 @@ dependencies = ["pydantic>=2", "numpy", "pymsis>=0.13", "sgp4"]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 tools = ["pennylane>=0.40", "pennylane-lightning", "ortools", "torch"]
+harness = ["transformers", "requests", "torch"]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["helioguard", "helioguard.data", "helioguard.tools", "verispace_engine"]
+packages = ["helioguard", "helioguard.data", "helioguard.tools", "verispace_engine", "verispace_engine.harness"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -44,6 +44,38 @@ Domain-free package shared with the Navigator project; a test fails if it ever m
 
 HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
 
+## Phase 5 (done): the harness and a first evaluation
+`verispace_engine/harness/` (domain-neutral, reusable by the Navigator): `prompts.py` (system prompt with tool schemas, observation messages), `parser.py` (strict: the whole reply must be one JSON action, optionally in one code fence; no repair), `rollout.py` (N attempts per task, env-enforced turn and tool-call caps, JSONL log of every turn, tool call, step reward and final reward), `backends.py` (local Hugging Face transformers on CPU or GPU, an OpenAI-compatible HTTP endpoint with the key read from the environment or `.env`, and a scripted backend for tests), `eval.py`. HelioGuard plugs in through `helioguard/harness_env.py`. One command:
+
+    python -m verispace_engine.harness.eval --model Qwen/Qwen2.5-0.5B-Instruct --split eval --n 50
+    python -m verispace_engine.harness.eval --model baseline:tool-informed --split eval --n 50
+
+A reply the parser rejects ends the episode as a failure (-0.5). Logs and summaries are in `results/phase5/`. Tests: `tests/test_harness.py`, `tests/test_tool_informed.py`.
+
+**Tool-informed baseline first.** `ToolInformedPolicy` decides only from the briefing and tool results (a test locks the stored answers so touching them fails). It simulates raise and safe mode for every asset over the 48 h horizon, then hold and `check_feasibility` while the 10-call cap allows, asks `min_safe_altitude` for the launch, and submits the best plan that respects the ground windows.
+
+| Policy (final reward) | Train (1,000) | Eval (50) |
+|---|---|---|
+| Same plan, no tool calls | +0.702 | +0.743 |
+| Tool-informed | +0.945 | +0.948 |
+
+It clearly beats the no-tool plan, so Phase 4 is unchanged. One caution for training: it reaches the exact optimum on 80 percent of train and 74 percent of eval tasks, because the forecast-storm simulation is nearly the whole story; only the stronger and longer storm cases and the launch altitude are not visible to any tool. That leaves limited headroom for RL. If you want it harder, the change to consider is hidden information that only tools reveal (for example a tool-only disclosure of the true storm peak or a ground outage not in the briefing). I have not made that change.
+
+**First model evaluation** (50 eval tasks, Qwen2.5-0.5B-Instruct on CPU, 1 attempt, greedy):
+
+| Policy | Mean final reward | Valid submissions | Tool calls / episode |
+|---|---|---|---|
+| Oracle (upper bound) | +1.000 | 100% | 3.4 |
+| Tool-informed | +0.948 | 100% | 9.9 |
+| Same plan, no tool calls | +0.743 | 100% | 0 |
+| Rule-based | +0.727 | 100% | 3.4 |
+| Always raise | -1.353 | 100% | 0 |
+| **Qwen2.5-0.5B-Instruct** | **-0.500** | **0%** | 2.1 |
+
+Failure types for Qwen (50 episodes): 25 malformed output (a valid JSON action followed by extra text, so the strict parser rejects it), 1 other malformed output (invalid JSON), 23 rejected submissions (for example an asset set to null, or a missing asset), 1 never submits. 31 of 50 first replies were a legal tool call. In short, the model cannot yet follow the output format; no episode reached a scored decision, so -0.5 is the failure reward, not a measure of its physics skill.
+
+**Limitations.** The model is the smallest practical one (0.5B), run on CPU in float32 at about 1 minute per episode (a 50-task pass takes about an hour), as a single greedy attempt, so there is no variance estimate; the default of 8 attempts per task was not run for cost. The strict parser is deliberate, and a more lenient one would score this model differently (the extra-text failures dominate). Prompt wording was written once and not tuned. Larger models and the OpenAI-compatible endpoint path are implemented and unit-tested with a fake endpoint, but not run here. Nothing here is a claim about any trained agent: no training has happened.
+
 ## Phase 4 (done): multi-turn RL environment
 `helioguard/env.py` (`HelioGuardEnv`, on the engine `EnvBase`), with `env_tools.py`, `env_verifier.py`, `tasks.py`, `storms.py`, `policies.py`. Spacecraft, altitudes and the Kp-to-density mapping are illustrative; storm dates and Kp series are real. HelioGuard recommends; humans decide.
 

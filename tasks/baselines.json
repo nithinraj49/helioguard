@@ -33,6 +33,14 @@
       "submitted": 1000
     },
     {
+      "policy": "tool-informed (simulate each action)",
+      "episodes": 1000,
+      "mean_return": 1.238,
+      "mean_final_reward": 0.945,
+      "share_near_optimal": 0.8,
+      "submitted": 1000
+    },
+    {
       "policy": "always raise",
       "episodes": 1000,
       "mean_return": -1.332,
@@ -96,6 +104,14 @@
       "mean_return": 0.743,
       "mean_final_reward": 0.743,
       "share_near_optimal": 0.0,
+      "submitted": 50
+    },
+    {
+      "policy": "tool-informed (simulate each action)",
+      "episodes": 50,
+      "mean_return": 1.244,
+      "mean_final_reward": 0.948,
+      "share_near_optimal": 0.74,
       "submitted": 50
     },
     {

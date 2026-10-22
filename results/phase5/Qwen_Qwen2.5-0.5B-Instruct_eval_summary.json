@@ -1,0 +1,20 @@
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "split": "eval",
+  "tasks": 50,
+  "attempts": 1,
+  "temperature": 0.0,
+  "episodes": 50,
+  "mean_final_reward": -0.5,
+  "mean_final_reward_valid_only": null,
+  "mean_return": -0.595,
+  "valid_submission_rate": 0.0,
+  "tool_calls_per_episode": 2.1,
+  "turns_per_episode": 3.42,
+  "failure_types": {
+    "malformed:extra_text": 25,
+    "rejected_submission": 23,
+    "never_submits": 1,
+    "malformed:no_json": 1
+  }
+}

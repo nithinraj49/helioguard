@@ -12,7 +12,7 @@ from pathlib import Path
 
 from helioguard.env import HelioGuardEnv
 from helioguard.policies import (AlwaysRaisePolicy, EndlessToolCallsPolicy, NeverCallToolsPolicy,
-                                 NeverSubmitPolicy, OraclePolicy, RandomPolicy, RuleBasedPolicy,
+                                 NeverSubmitPolicy, OraclePolicy, RandomPolicy, RuleBasedPolicy, ToolInformedPolicy,
                                  VaguePredictionsPolicy, run_episode)
 from helioguard.tasks import load_tasks
 
@@ -21,6 +21,7 @@ POLICIES = {
     "rule-based": RuleBasedPolicy,
     "random": None,
     "no tools (rule-based plan)": NeverCallToolsPolicy,
+    "tool-informed (simulate each action)": ToolInformedPolicy,
     "always raise": AlwaysRaisePolicy,
     "vague claims": VaguePredictionsPolicy,
     "endless tool calls": EndlessToolCallsPolicy,
