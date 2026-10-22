@@ -13,10 +13,13 @@ The window term is the capacity-1 case of "load over capacity" without slack var
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+from verispace_engine import qubo as _engine
+from verispace_engine.qubo import (Qubo, all_bitstrings, all_energies, decode, qubo_energy, qubo_to_ising,
+                                   solve_exact)
 
 from ..physics import Spacecraft, simulate
 from ..verifier import ACTIONS, feasible
@@ -46,116 +49,23 @@ def action_rewards(sc: Spacecraft, scen: dict) -> dict[str, float]:
     return rewards
 
 
-# --- QUBO ------------------------------------------------------------------------------
-@dataclass
-class Qubo:
-    n: int
-    Q: np.ndarray                   # upper-triangular, diagonal = linear terms
-    const: float
-    rewards: list[dict[str, float]]
-    windows: list[int]
-
-
+# --- QUBO (the generic code lives in verispace_engine.qubo) -----------------------------------
 def build_qubo(rewards: list[dict[str, float]], windows: list[int]) -> Qubo:
-    n_assets, n_act = len(rewards), len(ACTION_NAMES)
-    allr = [r[a] for r in rewards for a in ACTION_NAMES]
-    penalty = (max(allr) - min(allr)) + 1.0
-    n = n_assets * n_act
-    Q = np.zeros((n, n))
-    const = 0.0
-    for i in range(n_assets):
-        idx = [i * n_act + a for a in range(n_act)]
-        for a, v in enumerate(idx):
-            Q[v, v] += -rewards[i][ACTION_NAMES[a]] - penalty      # reward and -P from (s-1)^2
-        for a in range(n_act):
-            for b in range(a + 1, n_act):
-                Q[idx[a], idx[b]] += 2 * penalty
-        const += penalty
-    for i in range(n_assets):
-        for j in range(i + 1, n_assets):
-            if windows[i] == windows[j]:
-                Q[i * n_act + RAISE, j * n_act + RAISE] += penalty
-    return Qubo(n, Q, const, rewards, list(windows))
-
-
-def qubo_energy(qubo: Qubo, x: np.ndarray) -> float:
-    x = np.asarray(x, dtype=float)
-    return float(qubo.const + x @ qubo.Q @ x)
-
-
-def _all_bitstrings(n: int) -> np.ndarray:
-    return ((np.arange(2 ** n)[:, None] >> np.arange(n - 1, -1, -1)) & 1).astype(float)
-
-
-def _all_energies(qubo: Qubo) -> np.ndarray:
-    bits = _all_bitstrings(qubo.n)
-    return qubo.const + np.einsum("ki,ij,kj->k", bits, qubo.Q, bits)
-
-
-def decode(qubo: Qubo, x: np.ndarray) -> dict[str, Any]:
-    """Map a bit vector to one action per asset; feasible only if every constraint holds."""
-    n_act = len(ACTION_NAMES)
-    plan: list[str | None] = []
-    for i in range(len(qubo.rewards)):
-        chosen = [a for a in range(n_act) if x[i * n_act + a] > 0.5]
-        plan.append(ACTION_NAMES[chosen[0]] if len(chosen) == 1 else None)
-    ok = all(p is not None for p in plan)
-    if ok:
-        for w in set(qubo.windows):
-            raisers = [i for i, p in enumerate(plan) if p == ACTION_NAMES[RAISE] and qubo.windows[i] == w]
-            ok = ok and len(raisers) <= 1
-    objective = sum(qubo.rewards[i][p] for i, p in enumerate(plan) if p is not None)
-    return {"assignment": plan, "feasible": bool(ok), "objective": float(objective)}
-
-
-def solve_exact(qubo: Qubo) -> dict[str, Any]:
-    t0 = time.perf_counter()
-    energies = _all_energies(qubo)
-    k = int(np.argmin(energies))
-    x = _all_bitstrings(qubo.n)[k]
-    return {**decode(qubo, x), "energy": float(energies[k]), "x": x.astype(int).tolist(),
-            "solve_time_s": time.perf_counter() - t0}
+    """Fleet QUBO: items = assets, groups = ground windows, exclusive action = raise_orbit."""
+    return _engine.build_qubo(rewards, windows, ACTION_NAMES, ACTION_NAMES[RAISE])
 
 
 def solve_ortools(rewards: list[dict[str, float]], windows: list[int]) -> dict[str, Any]:
-    from ortools.sat.python import cp_model
-    t0 = time.perf_counter()
-    model = cp_model.CpModel()
-    x = {(i, a): model.NewBoolVar(f"x_{i}_{a}") for i in range(len(rewards)) for a in ACTION_NAMES}
-    for i in range(len(rewards)):
-        model.AddExactlyOne(x[i, a] for a in ACTION_NAMES)
-    for w in set(windows):
-        model.AddAtMostOne(x[i, ACTION_NAMES[RAISE]] for i in range(len(rewards)) if windows[i] == w)
-    model.Maximize(sum(round(rewards[i][a] * 1000) * x[i, a] for (i, a) in x))
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 10.0
-    solver.parameters.num_workers = 1
-    status = solver.Solve(model)
-    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        raise RuntimeError("OR-Tools found no feasible schedule")
-    plan = [next(a for a in ACTION_NAMES if solver.Value(x[i, a])) for i in range(len(rewards))]
-    return {"assignment": plan, "objective": float(sum(rewards[i][p] for i, p in enumerate(plan))),
-            "status": solver.StatusName(status), "feasible": True,
-            "solve_time_s": time.perf_counter() - t0}
+    return _engine.solve_ortools(rewards, windows, ACTION_NAMES, ACTION_NAMES[RAISE])
+
+
+# Old private names, kept as thin aliases for one release; import from verispace_engine.qubo instead.
+_all_bitstrings = all_bitstrings
+_all_energies = all_energies
+_ising = qubo_to_ising
 
 
 # --- QAOA ------------------------------------------------------------------------------
-def _ising(qubo: Qubo) -> tuple[np.ndarray, dict[tuple[int, int], float], float]:
-    """x = (1 - Z)/2  ->  E = const' + sum h_i Z_i + sum J_ij Z_i Z_j."""
-    n, Q = qubo.n, qubo.Q
-    h = -np.diag(Q) / 2
-    J: dict[tuple[int, int], float] = {}
-    const = qubo.const + np.trace(Q) / 2
-    for i in range(n):
-        for j in range(i + 1, n):
-            if Q[i, j] != 0:
-                J[(i, j)] = Q[i, j] / 4
-                h[i] -= Q[i, j] / 4
-                h[j] -= Q[i, j] / 4
-                const += Q[i, j] / 4
-    return h, J, float(const)
-
-
 def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
                maxiter: int = 120) -> dict[str, Any]:
     import pennylane as qml
@@ -163,7 +73,7 @@ def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
 
     t0 = time.perf_counter()
     n = qubo.n
-    h, J, _ = _ising(qubo)
+    h, J, _ = qubo_to_ising(qubo)
     scale = max(np.abs(h).max(), max((abs(v) for v in J.values()), default=0.0), 1e-9)
     terms = [(h[i] / scale, qml.PauliZ(i)) for i in range(n) if h[i] != 0]
     terms += [(v / scale, qml.PauliZ(i) @ qml.PauliZ(j)) for (i, j), v in J.items()]
@@ -183,7 +93,7 @@ def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
             qml.qaoa.mixer_layer(params[1][layer], mixer_h)
         return qml.probs(wires=range(n))
 
-    energies = _all_energies(qubo)
+    energies = all_energies(qubo)
     calls = 0
 
     def expected(flat: np.ndarray) -> float:
@@ -201,7 +111,7 @@ def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
             best = res
     probs = np.asarray(probabilities(np.array([best.x[:layers], best.x[layers:]])))
 
-    bits = _all_bitstrings(n)
+    bits = all_bitstrings(n)
     e_min = float(energies.min())
     top = np.argsort(-probs)[:64]
     feasible_top = [k for k in top if decode(qubo, bits[k])["feasible"]]
