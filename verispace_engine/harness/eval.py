@@ -1,10 +1,10 @@
 """One command for evaluating a model (or a scripted baseline) on a task split.
 
-    python -m verispace_engine.harness.eval --model Qwen/Qwen2.5-0.5B-Instruct --split eval --n 50
-    python -m verispace_engine.harness.eval --model baseline:tool-informed --split eval --n 50
-    python -m verispace_engine.harness.eval --backend openai --model <name> --base-url <url>
+    python -m verispace_engine.harness.eval --domain <module> --model <hf model id> --split eval --n 50
+    python -m verispace_engine.harness.eval --domain <module> --model baseline:<name> --split eval --n 50
+    python -m verispace_engine.harness.eval --domain <module> --backend openai --model <name> --base-url <url>
 
-The domain plug-in (default helioguard.harness_env) provides load(split, n), ALLOWED_TYPES,
+The domain plug-in (a module named by --domain; a project may wrap main() with a default) provides load(split, n), ALLOWED_TYPES,
 EXTRA_ACTIONS and BASELINES. Writes <out>/<model>_<split>.jsonl (every turn) and a summary JSON.
 """
 from __future__ import annotations
@@ -19,13 +19,14 @@ from .backends import HFBackend, OpenAICompatibleBackend
 from .rollout import JsonlLog, RolloutConfig, run_rollouts, summarize
 
 
-def main(argv: list[str] | None = None) -> dict:
+def main(argv: list[str] | None = None, default_domain: str | None = None) -> dict:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model", required=True, help="HF model id, endpoint model name, or baseline:<name>")
     p.add_argument("--backend", choices=("hf", "openai"), default="hf")
     p.add_argument("--base-url", default="https://api.openai.com/v1")
     p.add_argument("--key-var", default="OPENAI_API_KEY", help="name of the variable holding the key (env or .env)")
-    p.add_argument("--domain", default="helioguard.harness_env")
+    p.add_argument("--domain", default=default_domain, required=default_domain is None,
+                   help="module providing load(), ALLOWED_TYPES, EXTRA_ACTIONS, BASELINES")
     p.add_argument("--split", default="eval")
     p.add_argument("--n", type=int, default=50, help="number of tasks")
     p.add_argument("--attempts", type=int, default=8)

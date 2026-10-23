@@ -181,7 +181,7 @@ def test_the_model_never_sees_the_stored_optimum(env, tasks):
 
 # --- the one command -----------------------------------------------------------------------
 def test_eval_command_runs_a_baseline_and_writes_log_and_summary(tmp_path):
-    s = harness_eval.main(["--model", "baseline:tool-informed", "--split", "eval", "--n", "3", "--out", str(tmp_path)])
+    s = harness_eval.main(["--domain", "helioguard.harness_env", "--model", "baseline:tool-informed", "--split", "eval", "--n", "3", "--out", str(tmp_path)])
     assert s["episodes"] == 3 and s["valid_submission_rate"] == 1.0
     assert (tmp_path / "baseline_tool-informed_eval_summary.json").exists()
     assert len((tmp_path / "baseline_tool-informed_eval.jsonl").read_text().splitlines()) == 3

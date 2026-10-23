@@ -47,8 +47,8 @@ HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb
 ## Phase 5 (done): the harness and a first evaluation
 `verispace_engine/harness/` (domain-neutral, reusable by the Navigator): `prompts.py` (system prompt with tool schemas, observation messages), `parser.py` (strict: the whole reply must be one JSON action, optionally in one code fence; no repair), `rollout.py` (N attempts per task, env-enforced turn and tool-call caps, JSONL log of every turn, tool call, step reward and final reward), `backends.py` (local Hugging Face transformers on CPU or GPU, an OpenAI-compatible HTTP endpoint with the key read from the environment or `.env`, and a scripted backend for tests), `eval.py`. HelioGuard plugs in through `helioguard/harness_env.py`. One command:
 
-    python -m verispace_engine.harness.eval --model Qwen/Qwen2.5-0.5B-Instruct --split eval --n 50
-    python -m verispace_engine.harness.eval --model baseline:tool-informed --split eval --n 50
+    python -m helioguard.harness_cli --model Qwen/Qwen2.5-0.5B-Instruct --split eval --n 50
+    python -m helioguard.harness_cli --model baseline:tool-informed --split eval --n 50
 
 A reply the parser rejects ends the episode as a failure (-0.5). Logs and summaries are in `results/phase5/`. Tests: `tests/test_harness.py`, `tests/test_tool_informed.py`.
 

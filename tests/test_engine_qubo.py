@@ -134,3 +134,34 @@ def test_pyproject_has_an_optional_quantum_extra():
     extras = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]
     assert any(d.startswith("pennylane") for d in extras["quantum"])
     assert "quantum" not in str(tomllib.loads(Path("pyproject.toml").read_text())["project"].get("dependencies", ""))
+
+
+# --- decode_fn and the one-qubit case (added after the Navigator changes to qaoa.py) -----------
+def test_decode_fn_replaces_the_default_decoder():
+    from verispace_engine.qaoa import solve_qaoa
+    q = old.build_qubo(REWARDS, WINDOWS)
+    calls = []
+
+    def custom(qubo, x):
+        calls.append(1)
+        return {"feasible": True, "custom": int(sum(x))}
+
+    out = solve_qaoa(q, layers=1, decode_fn=custom)
+    assert calls and out["custom"] == sum(out["x"]) and "assignment" not in out      # its fields, not decode()'s
+    default = solve_qaoa(q, layers=1)
+    assert "assignment" in default and "custom" not in default
+
+
+def test_decode_fn_feasibility_steers_the_pick():
+    from verispace_engine.qaoa import solve_qaoa
+    q = old.build_qubo(REWARDS, WINDOWS)
+    only_asset0_raises = lambda qubo, x: {"feasible": bool(x[0] > 0.5), "x0": float(x[0])}
+    assert solve_qaoa(q, layers=1, decode_fn=only_asset0_raises)["x"][0] == 1
+
+
+def test_qaoa_on_a_one_qubit_qubo():
+    from verispace_engine.qaoa import solve_qaoa
+    q = engine.Qubo(n=1, Q=np.array([[-1.0]]), const=0.0, rewards=[], groups=[], actions=["a"], exclusive=0)
+    out = solve_qaoa(q, layers=1, decode_fn=lambda qubo, x: {"feasible": True})
+    assert out["x"] == [1] and out["energy"] == pytest.approx(-1.0) and out["n_qubits"] == 1
+    assert out["optimum_probability"] > 0.5

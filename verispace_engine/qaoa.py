@@ -7,7 +7,7 @@ the rest of the engine imports without it. Always report QAOA next to a classica
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -17,10 +17,15 @@ __all__ = ["solve_qaoa"]
 
 
 def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
-               maxiter: int = 120) -> dict[str, Any]:
+               maxiter: int = 120, decode_fn: Callable[[Any, np.ndarray], dict[str, Any]] | None = None) -> dict[str, Any]:
     """Depth-`layers` QAOA on `qubo` (at most about 12 qubits), COBYLA over `restarts` random starts.
     Returns the decode() fields plus x, energy, expected_energy, optimum_probability, approx_ratio,
-    n_qubits, layers, simulator, evaluations and solve_time_s. Raises ImportError without PennyLane."""
+    n_qubits, layers, simulator, evaluations and solve_time_s. Raises ImportError without PennyLane.
+
+    `qubo` only needs n, Q and const. `decode_fn(qubo, x) -> {"feasible": bool, ...}` replaces the default
+    decode() for QUBOs with another bit layout (extra slack bits, other constraints); the result then carries
+    its fields instead of decode()'s."""
+    decode_fn = decode_fn or decode
     try:
         import pennylane as qml
         from scipy.optimize import minimize
@@ -34,7 +39,7 @@ def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
     scale = max(np.abs(h).max(), max((abs(v) for v in J.values()), default=0.0), 1e-9)
     terms = [(h[i] / scale, qml.PauliZ(i)) for i in range(n) if h[i] != 0]
     terms += [(v / scale, qml.PauliZ(i) @ qml.PauliZ(j)) for (i, j), v in J.items()]
-    cost_h = qml.dot([c for c, _ in terms], [o for _, o in terms])
+    cost_h = qml.Hamiltonian([c for c, _ in terms], [o for _, o in terms])   # also valid for a single term
     mixer_h = qml.qaoa.x_mixer(range(n))
     try:
         dev = qml.device("lightning.qubit", wires=n)
@@ -71,9 +76,9 @@ def solve_qaoa(qubo: Qubo, layers: int = 2, seed: int = 0, restarts: int = 3,
     bits = all_bitstrings(n)
     e_min = float(energies.min())
     top = np.argsort(-probs)[:64]
-    feasible_top = [k for k in top if decode(qubo, bits[k])["feasible"]]
+    feasible_top = [k for k in top if decode_fn(qubo, bits[k])["feasible"]]
     pick = min(feasible_top, key=lambda k: energies[k]) if feasible_top else int(top[0])
-    dec = decode(qubo, bits[pick])
+    dec = decode_fn(qubo, bits[pick])
     uniform = float(energies.mean())
     gap = uniform - e_min
     return {**dec, "x": bits[pick].astype(int).tolist(), "energy": float(energies[pick]),

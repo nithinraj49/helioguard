@@ -150,11 +150,11 @@ def test_env_base_contract():
 # --- independence ------------------------------------------------------------
 def test_engine_has_no_helioguard_code():
     root = pathlib.Path(__file__).parent.parent / "verispace_engine"
-    files = list(root.glob("*.py"))
+    files = [f for f in root.rglob("*.py") if "__pycache__" not in f.parts]      # recursive, incl. harness/
     assert files
     for f in files:
         text = f.read_text(encoding="utf-8").lower()
-        assert "helioguard" not in text, f.name
+        assert "helioguard" not in text, str(f.relative_to(root))
 
 
 # --- enum arguments (added in Phase 3) ------------------------------------------
