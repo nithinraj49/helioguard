@@ -1,5 +1,5 @@
 {
-  "_note": "Real SFT run: Qwen2.5-1.5B-Instruct + LoRA on a Colab T4 (fp16, Unsloth when installed). Checkpoint dir should point at Drive.",
+  "_note": "Real SFT run: Qwen2.5-1.5B-Instruct + LoRA on a Colab T4 (fp16). Checkpoint dir should point at Drive. Trainer is 'peft' until the T4 smoke test; switch to 'unsloth' and commit the choice before the real run.",
   "model": "Qwen/Qwen2.5-1.5B-Instruct",
   "data": "data/sft/train_traces.jsonl",
   "out_dir": "results/phase6/sft_1p5b",
@@ -15,6 +15,6 @@
   "seed": 0,
   "checkpoint_minutes": 10,
   "dtype": "auto",
-  "use_unsloth": true,
+  "trainer": "peft",
   "gradient_checkpointing": true
 }

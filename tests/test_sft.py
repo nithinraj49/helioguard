@@ -233,7 +233,7 @@ def synthetic_rows(n):
 def tiny_cfg(tmp_path, name, **kw):
     base = dict(model="tiny", out_dir=str(tmp_path / name), checkpoint_dir=str(tmp_path / name / "ckpt"),
                 max_seq_len=1024, lr=5e-3, epochs=1.0, max_steps=6, grad_accum=2, warmup_steps=1, seed=3,
-                checkpoint_minutes=999, use_unsloth=False)
+                checkpoint_minutes=999, trainer="peft")
     base.update(kw)
     return SFTConfig(**base)
 
@@ -287,7 +287,7 @@ def test_configs_load_and_differ_only_where_intended():
     smoke = load_config(ROOT / "configs" / "sft_smoke_0p5b.json")
     real = load_config(ROOT / "configs" / "sft_1p5b.json")
     assert "0.5B" in smoke.model and "1.5B" in real.model and smoke.max_steps == 10
-    assert real.use_unsloth and real.seed == 0 and real.lora_r >= smoke.lora_r and real.epochs >= 1
+    assert real.trainer == "peft" and smoke.trainer == "peft" and real.seed == 0 and real.lora_r >= smoke.lora_r and real.epochs >= 1
 
 
 # --- evaluation hook ---------------------------------------------------------------------------------
@@ -435,3 +435,12 @@ def test_amendment_is_in_the_gate_document_with_no_threshold_changed():
     assert "Amendment 1" in text and "No threshold changed" in text
     for needle in ("90 percent", "+0.743", "+0.727", "10,000 resamples"):    # original numbers still present
         assert needle in text
+
+
+def test_trainer_field_is_validated_and_never_falls_back_silently(tmp_path):
+    pytest.importorskip("torch")
+    from verispace_engine.sft import _build_model
+    with pytest.raises(ValueError):
+        _build_model(SFTConfig(trainer="deepspeed"))
+    with pytest.raises(RuntimeError):                       # unsloth on this CPU-only or unsloth-less machine
+        _build_model(SFTConfig(trainer="unsloth"))

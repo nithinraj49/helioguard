@@ -15,5 +15,5 @@
   "seed": 0,
   "checkpoint_minutes": 5,
   "dtype": "float32",
-  "use_unsloth": false
+  "trainer": "peft"
 }

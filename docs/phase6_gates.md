@@ -90,3 +90,35 @@ Clarifications made before the first training run. No threshold changed.
 - **Descriptive only.** Per-disruption rows and the quiet-task action rate (on tasks with no disruption
   listed: how often each action is chosen per asset, next to the stored optimum's mix) are descriptive;
   no gate depends on them.
+
+---
+
+## Amendment 2 (dated 2026-10-26, before any training; commit: the commit that adds this section, see `git log`)
+No threshold changed. Fixes an information loss in the compact tool-observation view of Amendment 1.
+
+- **Change.** The compact `simulate_decay` result now includes `min_alt_km` and `min_alt_hour`: the minimum
+  of the full raw hourly altitude series and the hour it occurs (rounded to 3 decimals like every float),
+  for all actions. Everything else in the view is as in Amendment 1.
+- **Why.** Raise trajectories dip and then recover, and the 12-hourly samples can miss the dip. A scan of
+  459 `simulate_decay` results on the 50 eval tasks (all assets, three actions, 48 h) found 154 non-monotone
+  raw trajectories and 18 raise trajectories whose true minimum was not visible in the compact view; the
+  largest gap was 1.52 km (for example `eval_storm_20220203_0`, asset b2, raise: true minimum 209.529 km at
+  hour 10, the samples showed 210.0 km). Safe mode and hold decay monotonically and lost nothing. The
+  minimum, and the margin to re-entry (minimum altitude minus 150 km), are what an agent needs to judge a
+  raise.
+- **Unchanged.** The environment, rewards, verifier and strict parser (the parser hash test passes); the
+  decision fields `final_alt_km`, `reentered`, `reentry_hour`, `can_gain_altitude`, `thrust_slows_decay`
+  and `min_alt_km` of `min_safe_altitude` are identical after rounding. Tests cover every `simulate_decay`
+  result on all eval tasks and (slow test) all train tasks.
+- **Scripted baselines unchanged.** They still score +0.727 (rule-based), +0.743 (no-tool plan), +0.948
+  (tool-informed), +1.000 (oracle) and -1.353 (always raise) on the 50 eval tasks.
+- **Base models.** The 0.5B and 1.5B base-model compact-view runs started under Amendment 1 were stopped
+  and discarded; they are re-run under this view (greedy, one attempt, 50 tasks) into
+  `results/phase6/baselines_compact/`.
+- **SFT traces regenerated.** 800 of 1,000 kept as before (same tasks, same order). Assistant turns and
+  step and final rewards are byte-identical to the previous set; only tool-observation text differs.
+  Tokens per trace: mean 3,392, max 3,595 (before: 3,214 and 3,415).
+- **Trainer field.** The training config has a `trainer` field (`peft` or `unsloth`), default `peft`, and
+  there is no silent fallback: the registered trainer is the one that runs. It is set after the T4 smoke test
+  and the choice is committed before the real run; this refines the "Registered run" line of Amendment 1,
+  and `train_summary.json` records the trainer used.

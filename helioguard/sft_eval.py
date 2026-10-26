@@ -126,7 +126,7 @@ def gate_report(greedy: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: str | Path = "results/phase6",
-             tag: str = "sft", max_new_tokens: int = 256,
+             tag: str = "sft", max_new_tokens: int = 256, greedy_only: bool = False,
              baseline_dir: str | Path = "results/phase6/baselines_compact") -> dict[str, Any]:
     env, ids = load("eval", n)
     tasks = [env._by_id[i] for i in ids]
@@ -135,13 +135,15 @@ def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: st
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     greedy_log, sampled_log = out_dir / f"{tag}_greedy.jsonl", out_dir / f"{tag}_t0.7.jsonl"
-    for p in (greedy_log, sampled_log):
+    for p in ((greedy_log,) if greedy_only else (greedy_log, sampled_log)):
         p.write_text("", encoding="utf-8")
     greedy = run_rollouts(env, ids, backend, RolloutConfig(attempts=1, temperature=0.0, seed=0, **base), greedy_log)
-    sampled = run_rollouts(env, ids, backend,
-                           RolloutConfig(attempts=len(seeds), temperature=0.7, seed=seeds[0], **base), sampled_log)
-    summary = {"model": backend.name, "tasks": len(ids), "greedy": summarize_condition(greedy, tasks),
-               "temperature_0.7_3_seeds": summarize_condition(sampled, tasks)}
+    summary = {"model": backend.name, "tasks": len(ids), "greedy": summarize_condition(greedy, tasks)}
+    sampled = []
+    if not greedy_only:                                          # greedy-only is for quick integration checks
+        sampled = run_rollouts(env, ids, backend,
+                               RolloutConfig(attempts=len(seeds), temperature=0.7, seed=seeds[0], **base), sampled_log)
+        summary["temperature_0.7_3_seeds"] = summarize_condition(sampled, tasks)
     summary["gates"] = gate_report(summary["greedy"])
     ref = Path(baseline_dir) / "baseline_no-tools_eval.jsonl"
     if ref.exists():                                            # secondary analyses (Amendment 1)
@@ -149,7 +151,8 @@ def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: st
                 for rec in map(json.loads, ref.read_text(encoding="utf-8").splitlines())
                 if rec.get("event") == "episode"]
         summary["secondary"] = {"greedy_paired_vs_no_tool_plan": paired_vs_baseline(greedy, base),
-                                "temperature_0.7_paired_vs_no_tool_plan": paired_vs_baseline(sampled, base)}
+                                **({"temperature_0.7_paired_vs_no_tool_plan": paired_vs_baseline(sampled, base)}
+                                   if sampled else {})}
         paired_ok = summary["secondary"]["greedy_paired_vs_no_tool_plan"]["ci_excludes_zero_above"]
         if paired_ok != summary["gates"]["gate_B_value"]["pass"]:
             summary["secondary"]["note"] = ("paired and unpaired Gate B disagree: unpaired "
@@ -168,9 +171,10 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     p.add_argument("--out", default="results/phase6")
     p.add_argument("--tag", default="sft")
     p.add_argument("--device", default=None)
+    p.add_argument("--greedy-only", action="store_true", help="skip the temperature 0.7 runs (integration checks)")
     a = p.parse_args(argv)
     from verispace_engine.harness.backends import HFBackend
-    summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter), a.n, out_dir=a.out, tag=a.tag)
+    summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter), a.n, out_dir=a.out, tag=a.tag, greedy_only=a.greedy_only)
     print(json.dumps(summary["gates"], indent=2))
     return summary
 

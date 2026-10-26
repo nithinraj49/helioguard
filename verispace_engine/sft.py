@@ -2,7 +2,7 @@
 
 build_labels: tokenise a chat so that only assistant tokens carry loss (system, user and tool
 outputs are context). train: a plain PyTorch loop with LoRA through PEFT, or Unsloth when it is
-installed and a GPU is present. Torch, transformers, peft and unsloth are imported inside the
+selected (config field `trainer`) and a GPU is present. Torch, transformers, peft and unsloth are imported inside the
 functions that need them, so the engine imports without them (optional "sft" extra).
 
 Resume: a checkpoint holds the adapter, optimizer, GradScaler, step and every RNG state. The data
@@ -47,7 +47,7 @@ class SFTConfig:
     checkpoint_minutes: float = 10.0
     log_every: int = 1
     dtype: str = "auto"                       # auto: float32 on CPU, float16 on GPU
-    use_unsloth: bool = True                  # used only when installed and a GPU is present
+    trainer: str = "peft"                     # "peft" (transformers + PEFT) or "unsloth" (GPU only)
     gradient_checkpointing: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -185,7 +185,11 @@ def _build_model(cfg: SFTConfig, tokenizer_hint: Any = None):
     """(model, tokenizer, device) with a LoRA adapter attached. Unsloth on GPU when available."""
     import torch
     has_gpu = torch.cuda.is_available()
-    if cfg.use_unsloth and has_gpu:
+    if cfg.trainer not in ("peft", "unsloth"):
+        raise ValueError(f"trainer must be 'peft' or 'unsloth', got {cfg.trainer!r}")
+    if cfg.trainer == "unsloth":
+        if not has_gpu:
+            raise RuntimeError("trainer 'unsloth' needs a GPU; use trainer 'peft' on CPU")
         try:
             from unsloth import FastLanguageModel
             model, tok = FastLanguageModel.from_pretrained(cfg.model, max_seq_length=cfg.max_seq_len,
@@ -196,8 +200,9 @@ def _build_model(cfg: SFTConfig, tokenizer_hint: Any = None):
                 use_gradient_checkpointing="unsloth" if cfg.gradient_checkpointing else False)
             model.trainer_name = "unsloth"
             return model, tok, "cuda"
-        except ImportError:
-            print("unsloth not installed: falling back to transformers + peft", flush=True)
+        except ImportError as exc:                 # no silent fallback: the registered trainer is the one that runs
+            raise RuntimeError("trainer 'unsloth' is selected but unsloth is not installed; "
+                               "install it or set trainer to 'peft'") from exc
     from peft import LoraConfig, get_peft_model
     from transformers import AutoModelForCausalLM, AutoTokenizer
     dtype = {"auto": torch.float16 if has_gpu else torch.float32, "float32": torch.float32,

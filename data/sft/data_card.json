@@ -57,8 +57,8 @@
     "the expert never makes claims and never recovers from errors, so the model sees no error or recovery examples"
   ],
   "tokens_per_trace": {
-    "mean": 3214,
-    "max": 3415,
-    "min": 2736
+    "mean": 3392,
+    "max": 3595,
+    "min": 2864
   }
 }

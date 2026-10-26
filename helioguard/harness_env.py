@@ -58,12 +58,16 @@ def compact_observation(obs):
     """What the model is shown: floats rounded to 3 decimals, and the hourly altitude series of
     simulate_decay replaced by altitudes every 12 h (raw observations are ~1,000 tokens each, which
     made a 10-call episode ~12,000 tokens). Decisions need only final altitude and re-entry hour,
-    which are kept exactly (to 3 decimals). The environment and its rewards are untouched."""
+    which are kept exactly (to 3 decimals). min_alt_km and min_alt_hour are the minimum of the full
+    hourly series, because raise trajectories dip and recover and 12-hourly samples can miss the dip
+    (Amendment 2). The environment and its rewards are untouched."""
     if not isinstance(obs, dict) or obs.get("type") != "tool_result":
         return _round(obs)
     result = dict(obs.get("result") or {})
     times, alts = result.pop("times_h", None), result.pop("altitudes_km", None)
     if times and alts:
+        lowest = min(range(len(alts)), key=lambda k: alts[k])        # true minimum of the FULL hourly series
+        result["min_alt_km"], result["min_alt_hour"] = alts[lowest], times[lowest]
         result["altitude_km_at_hours"] = {str(int(round(t))): a for t, a in zip(times, alts)
                                           if abs(t - round(t)) < 1e-6 and int(round(t)) % 12 == 0}
     return _round({**obs, "result": result})
