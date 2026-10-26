@@ -194,6 +194,7 @@ def _build_model(cfg: SFTConfig, tokenizer_hint: Any = None):
                 model, r=cfg.lora_r, lora_alpha=cfg.lora_alpha, lora_dropout=cfg.lora_dropout,
                 target_modules=list(cfg.target_modules), random_state=cfg.seed,
                 use_gradient_checkpointing="unsloth" if cfg.gradient_checkpointing else False)
+            model.trainer_name = "unsloth"
             return model, tok, "cuda"
         except ImportError:
             print("unsloth not installed: falling back to transformers + peft", flush=True)
@@ -210,6 +211,7 @@ def _build_model(cfg: SFTConfig, tokenizer_hint: Any = None):
     torch.manual_seed(cfg.seed)
     model = get_peft_model(model, LoraConfig(r=cfg.lora_r, lora_alpha=cfg.lora_alpha, lora_dropout=cfg.lora_dropout,
                                              target_modules=list(cfg.target_modules), task_type="CAUSAL_LM"))
+    model.trainer_name = "transformers+peft"
     return model, tok, device
 
 
@@ -280,7 +282,8 @@ def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
             break
     if step == total:
         model.save_pretrained(str(out_dir / "adapter"))
-    summary = {"model": cfg.model, "steps_done": step, "steps_total": total, "resumed_from": resumed_from,
+    summary = {"model": cfg.model, "trainer": getattr(model, "trainer_name", "custom"), "training_seed": cfg.seed,
+               "steps_done": step, "steps_total": total, "resumed_from": resumed_from,
                "examples": len(examples), "skipped_too_long": skipped, "steps_per_epoch": steps_per_epoch,
                "final_loss": log[-1]["loss"] if log else None, "first_loss": log[0]["loss"] if log else None,
                "config": asdict(cfg), "finished": step == total}

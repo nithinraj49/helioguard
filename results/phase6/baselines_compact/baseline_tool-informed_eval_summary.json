@@ -1,0 +1,15 @@
+{
+  "model": "baseline:tool-informed",
+  "split": "eval",
+  "tasks": 50,
+  "attempts": 1,
+  "temperature": null,
+  "episodes": 50,
+  "mean_final_reward": 0.948,
+  "mean_final_reward_valid_only": 0.948,
+  "mean_return": 1.244,
+  "valid_submission_rate": 1.0,
+  "tool_calls_per_episode": 9.86,
+  "turns_per_episode": 10.86,
+  "failure_types": {}
+}

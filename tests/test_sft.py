@@ -382,3 +382,56 @@ def test_cpu_smoke_run_10_steps_on_the_0p5b_model(tmp_path, tasks):
     log = [json.loads(line) for line in (tmp_path / "out" / "train_log.jsonl").read_text().splitlines()]
     assert len(log) == 10 and all(0 < r["loss"] < 50 and r["grad_norm"] > 0 for r in log)
     assert (tmp_path / "out" / "adapter" / "adapter_model.safetensors").exists()
+
+
+# --- Amendment 1: secondary analyses and recorded run facts -----------------------------------------
+def test_paired_difference_uses_the_same_tasks_and_can_disagree_with_unpaired():
+    from helioguard.sft_eval import gate_report, paired_vs_baseline
+    from verispace_engine.harness.stats import bootstrap_ci
+    ids = [f"t{i}" for i in range(20)]
+    base = [_fake(t, 0.30 + 0.035 * i) for i, t in enumerate(ids)]            # wide spread
+    model = [_fake(t, 0.35 + 0.035 * i) for i, t in enumerate(ids)]            # +0.05 on every task
+    p = paired_vs_baseline(model, base)
+    assert p["tasks"] == 20 and p["mean_difference"] == pytest.approx(0.05)
+    assert p["ci_low"] == pytest.approx(0.05) and p["ci_excludes_zero_above"] is True
+    mean, lo, hi = bootstrap_ci([r.final_reward for r in model])
+    assert lo < 0.743 < hi                                                  # unpaired CI cannot separate the means
+    assert gate_report(greedy(1.0, ci(mean, lo, hi)))["gate_B_value"]["pass"] is False
+
+
+def test_quiet_task_action_mix_is_descriptive_and_counts_only_undisrupted_tasks(tmp_path):
+    from helioguard.sft_eval import quiet_task_action_mix
+    ev = load_tasks(ROOT / "tasks" / "eval.jsonl")
+    quiet = [t for t in ev if not t["disruptions"]]
+    assert quiet
+    t = quiet[0]
+    plan = {a["id"]: "safe_mode_edge_on" for a in t["fleet"]}
+    log = tmp_path / "g.jsonl"
+    log.write_text(json.dumps({"event": "turn", "task_id": t["id"], "attempt": 0,
+                               "action": {"type": "submit_decision", "assets": plan}}) + "\n", encoding="utf-8")
+    out = quiet_task_action_mix(log, ev)
+    assert out["quiet_tasks"] == len(quiet) and out["tasks_with_a_submission"] == 1
+    assert out["model_actions"] == {"safe_mode_edge_on": len(plan)} and sum(out["optimum_actions"].values()) > 0
+
+
+def test_training_summary_records_trainer_and_seed(tmp_path):
+    pytest.importorskip("torch")
+    s = train(tiny_cfg(tmp_path, "rec", max_steps=2), synthetic_rows(8), tiny_build)
+    assert s["training_seed"] == 3 and "trainer" in s
+
+
+def test_scripted_baselines_are_identical_under_the_compact_view():
+    """Amendment 1: baselines re-run under the compact view; the tool-informed expert decides the same."""
+    from helioguard.harness_env import baseline_result, load
+    env, ids = load("eval", 12)
+    from helioguard.policies import ToolInformedPolicy, run_episode
+    for tid in ids:
+        raw = run_episode(env, ToolInformedPolicy(), tid)["final"]["final_reward"]
+        assert baseline_result(env, "tool-informed", tid).final_reward == pytest.approx(raw)
+
+
+def test_amendment_is_in_the_gate_document_with_no_threshold_changed():
+    text = (ROOT / "docs" / "phase6_gates.md").read_text(encoding="utf-8")
+    assert "Amendment 1" in text and "No threshold changed" in text
+    for needle in ("90 percent", "+0.743", "+0.727", "10,000 resamples"):    # original numbers still present
+        assert needle in text

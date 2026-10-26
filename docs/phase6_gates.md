@@ -60,3 +60,33 @@ limitation.
 ## Outcome
 Not run yet. Session 1 prepared traces (800 kept of 1,000), the trainer, the notebook and the evaluation hook;
 the 1.5B SFT run and the evaluation against these gates are still to do.
+
+---
+
+## Amendment 1 (dated 2026-10-26, before any training; commit: the commit that adds this section, see `git log`)
+Clarifications made before the first training run. No threshold changed.
+
+- **Observation view.** All models are evaluated under the compact tool-observation view (introduced in
+  commit 53cfe1d: floats rounded to 3 decimals, hourly altitude series of `simulate_decay` replaced by
+  altitudes every 12 h). The scripted baselines and the 0.5B and 1.5B base models were re-run under it;
+  results are in `results/phase6/baselines_compact/`. Scripted baselines score the same as under the raw
+  view (they use only final altitude and re-entry hour). The base models were run greedy, one attempt,
+  50 tasks (no temperature 0.7 run). Earlier base-model figures (raw view) are not comparable.
+- **Gate C.** "Only matches" means the model's 95 percent CI contains +0.727 or its point estimate is
+  below +0.727.
+- **Secondary analysis (not a gate).** Paired bootstrap of the per-task difference in final reward versus
+  the no-tool plan (compact view), same 10,000 resamples and seed. If the paired and unpaired Gate B
+  verdicts disagree, both are reported.
+- **Checkpoint.** The final checkpoint of the fixed-epoch config (`configs/sft_1p5b.json`, 2 epochs) is
+  evaluated. No checkpoint is selected using eval results.
+- **Registered run.** Qwen2.5-1.5B-Instruct, trainer Unsloth (fp16, Colab T4) if it installs, otherwise
+  transformers + PEFT; the trainer actually used is recorded in `train_summary.json` and reported. One
+  training seed (seed 0), a stated limitation: no variance across training seeds.
+- **"Valid submission".** The episode ended with a `submit_decision` that (1) passed the strict parser and
+  (2) was accepted by the environment (every asset in the fleet given a known action, a well-formed launch
+  decision when the briefing has one), so the environment returned a final reward. Rule violations
+  (for example two raises in one ground window) are still valid submissions and are penalised in the final
+  reward. Malformed replies, unplayable submissions and episodes that time out are not valid.
+- **Descriptive only.** Per-disruption rows and the quiet-task action rate (on tasks with no disruption
+  listed: how often each action is chosen per asset, next to the stored optimum's mix) are descriptive;
+  no gate depends on them.

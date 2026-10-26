@@ -179,8 +179,9 @@ class ToolInformedPolicy(Policy):
         return plan
 
 
-def run_episode(env: HelioGuardEnv, policy: Policy, task_id: str) -> dict[str, Any]:
-    """Play one episode. Returns the total reward and a breakdown."""
+def run_episode(env: HelioGuardEnv, policy: Policy, task_id: str, view=None) -> dict[str, Any]:
+    """Play one episode. Returns the total reward and a breakdown. `view(outcome)` may rewrite the
+    outcome a policy is shown (the harness's compact observations); rewards are never affected."""
     env.reset(task_id=task_id)
     total = step_total = claim_total = 0.0
     out = None
@@ -202,7 +203,7 @@ def run_episode(env: HelioGuardEnv, policy: Policy, task_id: str) -> dict[str, A
             timeout = bool(out.info.get("timeout"))
             break
         try:
-            action = gen.send(out)
+            action = gen.send(view(out) if view else out)
         except StopIteration:
             action = None
     return {"return": total, "step_reward_total": step_total, "claim_reward_total": claim_total,

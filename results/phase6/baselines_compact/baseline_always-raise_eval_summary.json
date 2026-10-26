@@ -1,0 +1,15 @@
+{
+  "model": "baseline:always-raise",
+  "split": "eval",
+  "tasks": 50,
+  "attempts": 1,
+  "temperature": null,
+  "episodes": 50,
+  "mean_final_reward": -1.353,
+  "mean_final_reward_valid_only": -1.353,
+  "mean_return": -1.353,
+  "valid_submission_rate": 1.0,
+  "tool_calls_per_episode": 0.0,
+  "turns_per_episode": 1.0,
+  "failure_types": {}
+}

@@ -67,6 +67,44 @@ def summarize_condition(results: Sequence[EpisodeResult], tasks: Sequence[dict])
     return out
 
 
+def paired_vs_baseline(results: Sequence[EpisodeResult], baseline: Sequence[EpisodeResult]) -> dict[str, Any]:
+    """Secondary analysis (not a gate): paired bootstrap of the per-task difference in final reward,
+    model minus baseline (the no-tool plan under the compact view). Tasks are the unit of resampling."""
+    m, b = per_task(results, lambda r: r.final_reward), per_task(baseline, lambda r: r.final_reward)
+    shared = sorted(set(m) & set(b))
+    diff = [m[t] - b[t] for t in shared]
+    mean, lo, hi = bootstrap_ci(diff)
+    return {"tasks": len(shared), "mean_difference": round(mean, 4), "ci_low": round(lo, 4),
+            "ci_high": round(hi, 4), "ci_excludes_zero_above": bool(lo > 0)}
+
+
+def _submitted_assets(log_path: str | Path) -> dict[str, dict[str, str]]:
+    """task id -> {asset: action} of the last submit_decision in a harness JSONL log (attempt 0)."""
+    plans: dict[str, dict[str, str]] = {}
+    for line in Path(log_path).read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        act = rec.get("action") if rec.get("event") == "turn" else None
+        if act and act.get("type") == "submit_decision" and rec.get("attempt", 0) == 0:
+            plans[rec["task_id"]] = act.get("assets", {})
+    return plans
+
+
+def quiet_task_action_mix(log_path: str | Path, tasks: Sequence[dict]) -> dict[str, Any]:
+    """Descriptive: on tasks with no disruption listed, how often each action is chosen per asset,
+    next to the stored optimum's mix. Not a gate."""
+    plans = _submitted_assets(log_path)
+    quiet = [t for t in tasks if not t["disruptions"]]
+    model_mix: dict[str, int] = defaultdict(int)
+    optimum_mix: dict[str, int] = defaultdict(int)
+    for t in quiet:
+        for a in t["optimal"]["plan"]["assets"].values():
+            optimum_mix[a] += 1
+        for a in plans.get(t["id"], {}).values():
+            model_mix[str(a)] += 1
+    return {"quiet_tasks": len(quiet), "model_actions": dict(model_mix), "optimum_actions": dict(optimum_mix),
+            "tasks_with_a_submission": sum(t["id"] in plans for t in quiet)}
+
+
 def gate_report(greedy: dict[str, Any]) -> dict[str, Any]:
     """Apply the pre-registered gates (docs/phase6_gates.md) to the greedy summary."""
     valid = greedy["valid_submission_rate"]["mean"]
@@ -88,7 +126,8 @@ def gate_report(greedy: dict[str, Any]) -> dict[str, Any]:
 
 
 def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: str | Path = "results/phase6",
-             tag: str = "sft", max_new_tokens: int = 256) -> dict[str, Any]:
+             tag: str = "sft", max_new_tokens: int = 256,
+             baseline_dir: str | Path = "results/phase6/baselines_compact") -> dict[str, Any]:
     env, ids = load("eval", n)
     tasks = [env._by_id[i] for i in ids]
     base = dict(max_new_tokens=max_new_tokens, allowed_types=tuple(ALLOWED_TYPES),
@@ -104,6 +143,19 @@ def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: st
     summary = {"model": backend.name, "tasks": len(ids), "greedy": summarize_condition(greedy, tasks),
                "temperature_0.7_3_seeds": summarize_condition(sampled, tasks)}
     summary["gates"] = gate_report(summary["greedy"])
+    ref = Path(baseline_dir) / "baseline_no-tools_eval.jsonl"
+    if ref.exists():                                            # secondary analyses (Amendment 1)
+        base = [EpisodeResult(**{k: v for k, v in rec.items() if k in EpisodeResult.__dataclass_fields__})
+                for rec in map(json.loads, ref.read_text(encoding="utf-8").splitlines())
+                if rec.get("event") == "episode"]
+        summary["secondary"] = {"greedy_paired_vs_no_tool_plan": paired_vs_baseline(greedy, base),
+                                "temperature_0.7_paired_vs_no_tool_plan": paired_vs_baseline(sampled, base)}
+        paired_ok = summary["secondary"]["greedy_paired_vs_no_tool_plan"]["ci_excludes_zero_above"]
+        if paired_ok != summary["gates"]["gate_B_value"]["pass"]:
+            summary["secondary"]["note"] = ("paired and unpaired Gate B disagree: unpaired "
+                                            f"{summary['gates']['gate_B_value']['pass']}, paired {paired_ok}; both reported")
+    summary["secondary"] = {**summary.get("secondary", {}), "quiet_task_action_mix_greedy":
+                            quiet_task_action_mix(greedy_log, tasks)}
     (out_dir / f"{tag}_eval_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 

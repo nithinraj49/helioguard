@@ -31,8 +31,13 @@ def load(split: str, n: int | None = None) -> tuple[HelioGuardEnv, list[str]]:
     return env, ids
 
 
+def _compact_view(out):
+    from verispace_engine.env_base import StepOutcome
+    return StepOutcome(compact_observation(out.observation), out.reward, out.done, out.info)
+
+
 def baseline_result(env: HelioGuardEnv, name: str, task_id: str) -> EpisodeResult:
-    r = run_episode(env, BASELINES[name](), task_id)
+    r = run_episode(env, BASELINES[name](), task_id, view=_compact_view)
     final = r["final"]
     ok = bool(final) and final.get("error") is None
     return EpisodeResult(task_id, 0, r["return"], final["final_reward"] if ok else -0.5, ok, r["tool_calls"],
