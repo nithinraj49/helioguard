@@ -11,7 +11,7 @@ import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from .backends import ModelBackend
 from .parser import ActionParseError, parse_action
@@ -28,6 +28,7 @@ class RolloutConfig:
     extra_actions: tuple[str, ...] = ()           # domain action lines shown in the system prompt
     malformed_reward: float = -0.5
     failure_final_reward: float = -0.5            # final reward credited to an episode with no valid submission
+    compactor: Callable[[Any], Any] | None = None  # domain hook that shortens observations before the model sees them
 
 
 @dataclass
@@ -92,7 +93,7 @@ def rollout_task(env, task_id: str, backend: ModelBackend, cfg: RolloutConfig, a
                 failure = "never_submits"
             break
         messages += [{"role": "assistant", "content": raw},
-                     {"role": "user", "content": observation_message(out.observation)}]
+                     {"role": "user", "content": observation_message(out.observation, compactor=cfg.compactor)}]
     valid = bool(final) and final.get("error") is None
     if final and final.get("error"):
         failure = "rejected_submission"

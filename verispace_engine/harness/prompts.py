@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 PROTOCOL = """You are an operations analyst agent. Work in turns. Each turn, reply with exactly ONE JSON object and nothing else (no prose, no markdown).
 
@@ -27,8 +27,11 @@ def briefing_message(briefing: str) -> str:
     return briefing + "\n\nReply with one JSON action."
 
 
-def observation_message(observation: Any, max_chars: int = 3000) -> str:
-    """The environment's answer to the last action, shown to the model as the next user turn."""
+def observation_message(observation: Any, max_chars: int = 3000, compactor: Callable[[Any], Any] | None = None) -> str:
+    """The environment's answer to the last action, shown to the model as the next user turn.
+    `compactor` (a domain hook) may shorten the observation first, e.g. drop long time series."""
+    if compactor is not None:
+        observation = compactor(observation)
     text = json.dumps(observation, separators=(",", ":"), default=str)
     if len(text) > max_chars:
         text = text[:max_chars] + "...(truncated)"

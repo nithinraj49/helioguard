@@ -1,0 +1,64 @@
+{
+  "source": "tool-informed expert (helioguard.policies.ToolInformedPolicy) on train tasks only",
+  "threshold_final_reward": 0.9,
+  "optimal_means_final_reward_at_least": 0.999,
+  "seed": 0,
+  "generation_is_deterministic": true,
+  "tasks_in": 1000,
+  "valid_submissions": 1000,
+  "traces_kept": 800,
+  "kept_share": 0.8,
+  "kept_optimal": 283,
+  "kept_non_optimal": 517,
+  "kept_final_reward": {
+    "mean": 0.9894,
+    "min": 0.9008,
+    "histogram": {
+      "[-1.0, 0.0)": 0,
+      "[0.0, 0.5)": 0,
+      "[0.5, 0.8)": 0,
+      "[0.8, 0.9)": 0,
+      "[0.9, 0.999)": 517,
+      "[0.999, 1.0]": 283
+    }
+  },
+  "all_final_reward_histogram": {
+    "[-1.0, 0.0)": 0,
+    "[0.0, 0.5)": 9,
+    "[0.5, 0.8)": 90,
+    "[0.8, 0.9)": 101,
+    "[0.9, 0.999)": 517,
+    "[0.999, 1.0]": 283
+  },
+  "dropped_below_threshold": 200,
+  "disruption_mix_kept": {
+    "forecast_error": 372,
+    "ground_outage": 194,
+    "storm_longer": 312,
+    "storm_stronger": 245,
+    "thruster_failure": 254,
+    "launch_slip": 187
+  },
+  "disruption_mix_all": {
+    "forecast_error": 476,
+    "ground_outage": 222,
+    "storm_longer": 417,
+    "storm_stronger": 347,
+    "thruster_failure": 304,
+    "launch_slip": 230
+  },
+  "tasks_with_no_disruption_kept": 77,
+  "with_launch_kept": 536,
+  "assets_per_task_kept": 3.15,
+  "tool_calls_per_trace_kept": 9.75,
+  "storms_kept": 235,
+  "limitations": [
+    "traces below the threshold are dropped, which selects tasks the expert solves (easier tasks are over-represented)",
+    "the expert never makes claims and never recovers from errors, so the model sees no error or recovery examples"
+  ],
+  "tokens_per_trace": {
+    "mean": 3214,
+    "max": 3415,
+    "min": 2736
+  }
+}

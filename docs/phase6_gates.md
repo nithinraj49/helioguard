@@ -58,4 +58,5 @@ This selects easier tasks for training (hard tasks the expert gets wrong are dro
 limitation.
 
 ## Outcome
-Not run yet.
+Not run yet. Session 1 prepared traces (800 kept of 1,000), the trainer, the notebook and the evaluation hook;
+the 1.5B SFT run and the evaluation against these gates are still to do.

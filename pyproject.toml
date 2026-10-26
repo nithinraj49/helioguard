@@ -10,6 +10,7 @@ dev = ["pytest>=8"]
 tools = ["pennylane>=0.40", "pennylane-lightning", "ortools", "torch"]
 quantum = ["pennylane>=0.40", "pennylane-lightning", "scipy"]
 harness = ["transformers", "requests", "torch"]
+sft = ["transformers", "peft", "torch", "safetensors"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -20,4 +21,5 @@ packages = ["helioguard", "helioguard.data", "helioguard.tools", "verispace_engi
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --basetemp=.pytest_tmp"
+addopts = "-q --basetemp=.pytest_tmp -m \"not slow\""
+markers = ["slow: minutes-long tests (CPU model training); run with pytest -m slow"]

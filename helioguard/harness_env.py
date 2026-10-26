@@ -37,3 +37,28 @@ def baseline_result(env: HelioGuardEnv, name: str, task_id: str) -> EpisodeResul
     ok = bool(final) and final.get("error") is None
     return EpisodeResult(task_id, 0, r["return"], final["final_reward"] if ok else -0.5, ok, r["tool_calls"],
                          env._turn, None if ok else "never_submits")
+
+
+def _round(x, digits: int = 3):
+    if isinstance(x, float):
+        return round(x, digits)
+    if isinstance(x, dict):
+        return {k: _round(v, digits) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_round(v, digits) for v in x]
+    return x
+
+
+def compact_observation(obs):
+    """What the model is shown: floats rounded to 3 decimals, and the hourly altitude series of
+    simulate_decay replaced by altitudes every 12 h (raw observations are ~1,000 tokens each, which
+    made a 10-call episode ~12,000 tokens). Decisions need only final altitude and re-entry hour,
+    which are kept exactly (to 3 decimals). The environment and its rewards are untouched."""
+    if not isinstance(obs, dict) or obs.get("type") != "tool_result":
+        return _round(obs)
+    result = dict(obs.get("result") or {})
+    times, alts = result.pop("times_h", None), result.pop("altitudes_km", None)
+    if times and alts:
+        result["altitude_km_at_hours"] = {str(int(round(t))): a for t, a in zip(times, alts)
+                                          if abs(t - round(t)) < 1e-6 and int(round(t)) % 12 == 0}
+    return _round({**obs, "result": result})

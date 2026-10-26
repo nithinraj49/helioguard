@@ -1,0 +1,19 @@
+{
+  "_note": "CPU smoke test: 10 optimizer steps on the 0.5B model. Not a real run.",
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "data": "data/sft/train_traces.jsonl",
+  "out_dir": "results/phase6/sft_smoke_0p5b",
+  "checkpoint_dir": "results/phase6/sft_smoke_0p5b/checkpoints",
+  "max_seq_len": 4096,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "lr": 0.0002,
+  "epochs": 1.0,
+  "max_steps": 10,
+  "grad_accum": 1,
+  "warmup_steps": 2,
+  "seed": 0,
+  "checkpoint_minutes": 5,
+  "dtype": "float32",
+  "use_unsloth": false
+}

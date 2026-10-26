@@ -34,6 +34,7 @@ def main(argv: list[str] | None = None, default_domain: str | None = None) -> di
     p.add_argument("--max-new-tokens", type=int, default=256)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--device", default=None)
+    p.add_argument("--adapter", default=None, help="LoRA adapter folder to apply to a local --model")
     p.add_argument("--out", default="results/phase5")
     a = p.parse_args(argv)
 
@@ -54,8 +55,9 @@ def main(argv: list[str] | None = None, default_domain: str | None = None) -> di
     else:
         cfg = RolloutConfig(attempts=a.attempts, max_new_tokens=a.max_new_tokens, temperature=a.temperature,
                             seed=a.seed, allowed_types=tuple(domain.ALLOWED_TYPES),
-                            extra_actions=tuple(domain.EXTRA_ACTIONS))
-        backend = (HFBackend(a.model, device=a.device) if a.backend == "hf"
+                            extra_actions=tuple(domain.EXTRA_ACTIONS),
+                            compactor=getattr(domain, "compact_observation", None))
+        backend = (HFBackend(a.model, device=a.device, adapter=a.adapter) if a.backend == "hf"
                    else OpenAICompatibleBackend(a.model, base_url=a.base_url, key_var=a.key_var))
         results = run_rollouts(env, ids, backend, cfg, log_path)
     summary = {"model": a.model, "split": a.split, "tasks": len(ids),

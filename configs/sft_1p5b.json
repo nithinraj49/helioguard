@@ -1,0 +1,20 @@
+{
+  "_note": "Real SFT run: Qwen2.5-1.5B-Instruct + LoRA on a Colab T4 (fp16, Unsloth when installed). Checkpoint dir should point at Drive.",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "data": "data/sft/train_traces.jsonl",
+  "out_dir": "results/phase6/sft_1p5b",
+  "checkpoint_dir": "results/phase6/sft_1p5b/checkpoints",
+  "max_seq_len": 4096,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "lora_dropout": 0.0,
+  "lr": 0.0002,
+  "epochs": 2.0,
+  "grad_accum": 8,
+  "warmup_steps": 10,
+  "seed": 0,
+  "checkpoint_minutes": 10,
+  "dtype": "auto",
+  "use_unsloth": true,
+  "gradient_checkpointing": true
+}
