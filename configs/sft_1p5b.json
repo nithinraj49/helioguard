@@ -1,5 +1,5 @@
 {
-  "_note": "Real SFT run: Qwen2.5-1.5B-Instruct + LoRA on a Colab T4 (fp16). Checkpoint dir should point at Drive. Trainer is 'peft' until the T4 smoke test; switch to 'unsloth' and commit the choice before the real run.",
+  "_note": "Real SFT run: Qwen2.5-1.5B-Instruct + LoRA on a Colab T4 (fp16). Checkpoint dir should point at Drive. Trainer is registered as 'peft' after the T4 smoke test (20 steps, no NaN losses, fits at 3,595 tokens, about 54 s per step; resume check passed: resumed_from 11, steps 12-20 identical to the uninterrupted run). See docs/phase6_gates.md, Amendment 3.",
   "model": "Qwen/Qwen2.5-1.5B-Instruct",
   "data": "data/sft/train_traces.jsonl",
   "out_dir": "results/phase6/sft_1p5b",

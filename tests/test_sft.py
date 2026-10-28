@@ -444,3 +444,74 @@ def test_trainer_field_is_validated_and_never_falls_back_silently(tmp_path):
         _build_model(SFTConfig(trainer="deepspeed"))
     with pytest.raises(RuntimeError):                       # unsloth on this CPU-only or unsloth-less machine
         _build_model(SFTConfig(trainer="unsloth"))
+
+
+# --- session 1d: provenance, config note, notebook cells, amendment 3 ------------------------------------
+def test_train_summary_records_the_git_commit(tmp_path):
+    pytest.importorskip("torch")
+    head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=str(ROOT)).stdout.strip()
+    s = train(tiny_cfg(tmp_path, "git", max_steps=2), synthetic_rows(8), tiny_build)
+    assert s["git_commit"] == head and len(head) == 40
+    assert isinstance(s["git_dirty"], bool)
+    on_disk = json.loads((tmp_path / "git" / "train_summary.json").read_text())
+    assert on_disk["git_commit"] == head
+
+
+def test_git_commit_is_none_outside_a_repository(tmp_path, monkeypatch):
+    from verispace_engine.sft import git_state
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    assert git_state() == (None, None)
+
+
+def test_real_config_note_records_the_registered_trainer():
+    raw = json.loads((ROOT / "configs" / "sft_1p5b.json").read_text(encoding="utf-8"))
+    assert raw["trainer"] == "peft" and "T4 smoke test" in raw["_note"]
+    for needle in ("20 steps", "no NaN", "3,595", "54 s", "resumed_from 11", "identical"):
+        assert needle in raw["_note"], needle
+
+
+def _nb():
+    nb = json.loads((ROOT / "notebooks" / "phase6_sft_colab.ipynb").read_text(encoding="utf-8"))
+    return nb, ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+
+
+def test_notebook_starts_with_a_fresh_clone_and_cds_into_the_repo():
+    _, code = _nb()
+    first = code[0]
+    assert "rm -rf /content/helioguard" in first or "shutil.rmtree" in first
+    assert first.index("git") < first.index("%cd /content/helioguard")
+    assert "%cd /content/helioguard" in first
+
+
+def test_notebook_sets_allocator_and_pins_versions_and_prints_them():
+    _, code = _nb()
+    train_cell = next(c for c in code if "train_sft.py" in c)
+    assert "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True" in train_cell
+    install = next(c for c in code if "pip" in c and "install" in c)
+    for pkg in ("peft==", "transformers==", "accelerate==", "torchao>=0.16.0"):
+        assert pkg in install, pkg
+    check = next(c for c in code if "importlib.metadata" in c or "__version__" in c)
+    for pkg in ("peft", "transformers", "accelerate", "torchao", "torch"):
+        assert pkg in check
+
+
+def test_notebook_copies_traces_from_drive_or_regenerates_and_saves_them():
+    _, code = _nb()
+    cell = next(c for c in code if "train_traces.jsonl" in c and "generate_sft_traces.py" in c)
+    assert "os.path.exists" in cell and "copy" in cell and "/content/drive" in cell
+    assert cell.index("copy") < cell.index("generate_sft_traces.py")
+
+
+def test_gitignore_excludes_smoke_and_base_outputs():
+    lines = (ROOT / ".gitignore").read_text(encoding="utf-8").split()
+    assert "results/phase6/sft_smoke_0p5b/" in lines
+
+
+def test_amendment_3_registers_the_run_and_changes_no_threshold():
+    text = (ROOT / "docs" / "phase6_gates.md").read_text(encoding="utf-8")
+    assert "## Amendment 3" in text
+    a3 = text[text.index("## Amendment 3"):]
+    for needle in ("No threshold changed", "Qwen2.5-1.5B-Instruct", "trainer `peft`", "seed 0", "2 epochs",
+                   "200 steps", "final checkpoint", "without `--greedy-only`", "resumed_from 11", "54 s"):
+        assert needle in a3, needle

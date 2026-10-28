@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 IGNORE = -100
-__all__ = ["IGNORE", "SFTConfig", "build_labels", "load_config", "tokenize_rows", "train"]
+__all__ = ["IGNORE", "SFTConfig", "build_labels", "git_state", "load_config", "tokenize_rows", "train"]
 
 
 @dataclass
@@ -50,6 +50,21 @@ class SFTConfig:
     trainer: str = "peft"                     # "peft" (transformers + PEFT) or "unsloth" (GPU only)
     gradient_checkpointing: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
+
+
+def git_state() -> tuple[str | None, bool | None]:
+    """(commit hash, working tree has tracked changes) of the repository in the current directory;
+    (None, None) when git or a repository is not available."""
+    import subprocess
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=20)
+        if head.returncode != 0:
+            return None, None
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                               capture_output=True, text=True, timeout=20)
+        return head.stdout.strip(), bool(dirty.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        return None, None
 
 
 def load_config(path: str | Path, **overrides: Any) -> SFTConfig:
@@ -226,6 +241,7 @@ def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
     """Run (or resume) SFT. `build(cfg) -> (peft_model, tokenizer, device)` lets tests supply a tiny model.
     `stop_after_steps` ends the run early after checkpointing (to test resuming). Returns a summary."""
     import torch
+    git_commit, git_dirty = git_state()
     torch.manual_seed(cfg.seed)
     random.seed(cfg.seed)
     model, tok, device = (build or _build_model)(cfg)
@@ -288,6 +304,7 @@ def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
     if step == total:
         model.save_pretrained(str(out_dir / "adapter"))
     summary = {"model": cfg.model, "trainer": getattr(model, "trainer_name", "custom"), "training_seed": cfg.seed,
+               "git_commit": git_commit, "git_dirty": git_dirty,
                "steps_done": step, "steps_total": total, "resumed_from": resumed_from,
                "examples": len(examples), "skipped_too_long": skipped, "steps_per_epoch": steps_per_epoch,
                "final_loss": log[-1]["loss"] if log else None, "first_loss": log[0]["loss"] if log else None,

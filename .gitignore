@@ -10,3 +10,4 @@ __pycache__/
 data/sft/*.jsonl
 results/phase6/*/checkpoints/
 results/phase6/*/adapter/
+results/phase6/sft_smoke_0p5b/

@@ -122,3 +122,25 @@ No threshold changed. Fixes an information loss in the compact tool-observation 
   there is no silent fallback: the registered trainer is the one that runs. It is set after the T4 smoke test
   and the choice is committed before the real run; this refines the "Registered run" line of Amendment 1,
   and `train_summary.json` records the trainer used.
+
+---
+
+## Amendment 3 (dated 2026-10-28, before the registered run; commit: the commit that adds this section, see `git log`)
+No threshold changed. Registers the run and records the T4 smoke test.
+
+- **Registered run.** Qwen2.5-1.5B-Instruct + LoRA, trainer `peft` (transformers + PEFT; Unsloth is not
+  used), training seed 0, 2 epochs (200 steps; 800 traces, 8 examples per step, 100 steps per
+  epoch), config `configs/sft_1p5b.json`. The **final checkpoint** (step 200) is the one evaluated; no
+  checkpoint is selected using eval results. This settles the "Registered run" line of Amendments 1 and 2:
+  the trainer is `peft`.
+- **T4 smoke test (before registering).** 20 steps on the Colab T4: no NaN losses, fits in memory at the
+  longest trace (3,595 tokens), about 54 s per step. Resume check passed: the run was stopped, resumed with
+  resumed_from 11, and steps 12 to 20 were identical to the uninterrupted run. At about 54 s per step the
+  200-step run is roughly three hours of compute plus checkpointing.
+- **Provenance.** `train_summary.json` records the git commit hash and whether the working tree had
+  tracked changes, together with the trainer and the training seed.
+- **Evaluation protocol.** `python -m helioguard.sft_eval` is run without `--greedy-only`: greedy once and
+  temperature 0.7 with seeds 0, 1 and 2, on the 50 eval tasks, as in the protocol above. Gates are decided
+  on greedy.
+- **Environment pins.** The notebook pins peft, transformers and accelerate and requires torchao>=0.16.0;
+  the versions in use are printed in the notebook's check cell and are to be copied into the run notes.
