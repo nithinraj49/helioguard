@@ -11,3 +11,6 @@ data/sft/*.jsonl
 results/phase6/*/checkpoints/
 results/phase6/*/adapter/
 results/phase6/sft_smoke_0p5b/
+
+# Phase 7 raw per-run caches (summaries and tables are committed)
+results/phase7/cache/

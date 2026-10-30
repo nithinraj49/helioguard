@@ -150,4 +150,14 @@ cached instance (G0(i)), which the legacy rule fails on some of these instances.
 metrics, sizes, seeds, instance counts) predates the first run; see "Registration timeline".
 
 ## Outcome
-(Filled in after the runs.)
+Grid finished 2026-10-30 (210 units, 3.3 h on 8 workers); full tables in `results/phase7/results.md`. No gate was changed.
+- **G0:** pass. 110 instances; exact optimum feasible on all; OR-Tools within its rounding bound on all (largest gap 1.5e-3, 11 instances trail exact at all);
+  simulator fidelity and harness-vs-engine agreement pinned by tests (engine vs harness paired P(optimum) differences between -0.003 and +0.004).
+- **G1:** pass in all 10 (family, size) cells at p = 2 and at every p = 1 to 4.
+- **G2:** (a) top-64 hit rate passes at B6, B8, A6, A9 and fails at B10, B12, B14, B16, A12, A15; (b) single-shot P(optimum) >= 0.5 fails at all 10 sizes.
+- **G3:** decays with size in every family, arm and p (slopes -0.15 to -0.22 log10 per qubit, all CIs below 0).
+- **G4:** 9 of 30 paired comparisons "helps", 21 "no detectable change", 0 "hurts".
+- **G5:** L-BFGS-B/ramp helps in 16 of 20 cells (0 hurts); Nelder-Mead/ramp helps 8, hurts 7, 5 unchanged; COBYLA/ramp 7 helps, 0 hurts; L-BFGS-B/random 9 helps;
+  Nelder-Mead/random 4 helps, 1 hurts. Selecting the best variant after the fact is descriptive, not a gate.
+- **G6:** no quantum advantage claimed or tested for. Exact and OR-Tools solve every instance in milliseconds; QAOA's single-shot P(optimum) falls about 30 to 40 percent per added qubit.
+- **Extension:** 18 and 20 qubits (harness arm, p = 2, 5 instances) ran; P(optimum) about 1e-3 and 5e-4, top-64 hit 0.47 at both. Sizes above 20 were not tried.

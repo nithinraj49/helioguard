@@ -1,0 +1,81 @@
+{
+ "serial_runs_p2": [
+  {
+   "n_qubits": 6,
+   "engine_p2_s": 1.0753488999907859,
+   "engine_evals": 360,
+   "harness_p2_s": 0.2195122999837622,
+   "harness_evals": 360,
+   "exact_s": 6.289998418651521e-05,
+   "ortools_s": 0.0045439999958034605
+  },
+  {
+   "n_qubits": 8,
+   "engine_p2_s": 1.2817773999995552,
+   "engine_evals": 360,
+   "harness_p2_s": 0.23105740000028163,
+   "harness_evals": 360,
+   "exact_s": 9.389998740516603e-05,
+   "ortools_s": 0.0009218999766744673
+  },
+  {
+   "n_qubits": 10,
+   "engine_p2_s": 1.329363500000909,
+   "engine_evals": 321,
+   "harness_p2_s": 0.233480499999132,
+   "harness_evals": 300,
+   "exact_s": 0.00029070000164210796,
+   "ortools_s": 0.0014702999906148762
+  },
+  {
+   "n_qubits": 12,
+   "engine_p2_s": 1.8491473000030965,
+   "engine_evals": 360,
+   "harness_p2_s": 0.41913080000085756,
+   "harness_evals": 360,
+   "exact_s": 0.001258500007679686,
+   "ortools_s": 0.0010458999895490706
+  },
+  {
+   "n_qubits": 14,
+   "engine_p2_s": 3.1649628000159282,
+   "engine_evals": 360,
+   "harness_p2_s": 0.9131744000187609,
+   "harness_evals": 360,
+   "exact_s": 0.006906100024934858,
+   "ortools_s": 0.0010887999960687011
+  },
+  {
+   "n_qubits": 16,
+   "engine_p2_s": 9.159517499996582,
+   "engine_evals": 360,
+   "harness_p2_s": 4.4130133999860846,
+   "harness_evals": 360,
+   "exact_s": 0.03572640000493266,
+   "ortools_s": 0.0011359000054653734
+  }
+ ],
+ "per_eval_probes": [
+  {
+   "n_qubits": 16,
+   "engine_s_per_eval_incl_setup": 0.036031250002755165,
+   "engine_evals": 6,
+   "engine_total_s": 0.21618750001653098,
+   "harness_s_per_eval_p2": 0.010886933334404603
+  },
+  {
+   "n_qubits": 18,
+   "engine_s_per_eval_incl_setup": 0.13149540000207102,
+   "engine_evals": 6,
+   "engine_total_s": 0.7889724000124261,
+   "harness_s_per_eval_p2": 0.16989853333022134
+  },
+  {
+   "n_qubits": 20,
+   "engine_s_per_eval_incl_setup": 0.6872753000012987,
+   "engine_evals": 6,
+   "engine_total_s": 4.123651800007792,
+   "harness_s_per_eval_p2": 0.7905773666667907
+  }
+ ]
+}

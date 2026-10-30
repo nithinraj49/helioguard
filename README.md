@@ -44,6 +44,51 @@ Domain-free package shared with the Navigator project; a test fails if it ever m
 
 HelioGuard's verifier now runs on `VerifierBase` (`HelioGuardVerifier`); the Feb 2022 results are unchanged (naive 0/4, physics-aware 4/4). 25 tests pass.
 
+## Phase 7, session 1 (done): QAOA scaling benchmark
+
+Pre-registered gates: `docs/phase7_gates.md`. Full tables, CIs and verdicts: `results/phase7/results.md` and `summary.json`.
+Spacecraft values are ILLUSTRATIVE. QAOA ran on classical statevector simulators; **no quantum advantage is claimed or
+tested for** (G6). `solve_qaoa` ("engine arm") was benchmarked unchanged against exact enumeration, OR-Tools CP-SAT and
+uniform random sampling, on HelioGuard scheduling QUBOs: family B (2 actions per asset) at 6, 8, 10, 12, 14, 16 qubits and
+family A (the real 3-action fleet) at 6, 9, 12, 15; 10 instances per size, 3 optimiser seeds, depth p = 1 to 4. A numpy
+simulator pinned to the PennyLane circuit (`verispace_engine/qaoa_bench.py`) added 3 optimisers x 2 starts, and a reduced
+run at 18 and 20 qubits (5 instances).
+
+Family B, engine defaults (COBYLA, random start), p = 2; mean over instances [95% bootstrap CI]:
+
+| qubits | P(optimum), one sample | uniform sampling | approx. ratio | top-64 readout finds optimum | 64 shots find optimum | uniform, 64 samples |
+|---|---|---|---|---|---|---|
+| 6 | 0.114 [0.092, 0.133] | 0.016 | 0.74 | 1.00 | 0.93 | 0.64 |
+| 8 | 0.049 [0.042, 0.056] | 0.004 | 0.67 | 1.00 | 0.89 | 0.22 |
+| 10 | 0.024 [0.017, 0.031] | 0.001 | 0.65 | 0.87 [0.67, 1.00] | 0.70 | 0.06 |
+| 12 | 0.010 [0.008, 0.012] | 2.4e-4 | 0.67 | 0.80 [0.67, 0.93] | 0.43 | 0.02 |
+| 14 | 0.005 [0.004, 0.006] | 6.1e-5 | 0.70 | 0.63 [0.50, 0.77] | 0.28 | 0.004 |
+| 16 | 0.002 [0.002, 0.003] | 1.5e-5 | 0.63 | 0.60 [0.47, 0.77] | 0.14 | 0.001 |
+
+Exact enumeration and OR-Tools solved every instance (110 of 110, OR-Tools within its own reward rounding) in a few
+milliseconds; serial QAOA at 16 qubits took 9 s (360 simulator evaluations) against 1 ms for OR-Tools.
+
+- **G1, beats chance: pass in every cell** (7x to 162x more optimum probability than uniform sampling), and the gap grows with size.
+- **G2, solves the problem: mostly fails.** Single-shot P(optimum) >= 0.5 fails at every size. The top-64 readout (simulator-only) passes
+  its reliability gate at 6 and 8 qubits (family B) and 6 and 9 (family A) and fails from 10 and 12 qubits respectively. The top-64 readout needs
+  the full probability vector, which hardware does not give; the 64-shot column is the hardware-style reading and is lower.
+- **G3, scaling: P(optimum) decays with size**, about -0.15 to -0.17 log10 per added qubit (family B), -0.18 to -0.22 (family A); every CI is below zero.
+- **G4, depth: mostly no detectable change** (21 of 30 paired p to p+1 comparisons; 9 "helps", none "hurts"). Four layers do not rescue the large sizes.
+- **G5, optimiser and start (same evaluation budget):** L-BFGS-B from the ramp start helps in 16 of 20 cells and hurts in none; Nelder-Mead from the ramp
+  start hurts in 7 and helps in 8; COBYLA/ramp and Nelder-Mead/random are mostly indistinguishable from the default. Gains are small in absolute terms.
+- **Engine vs numpy harness (COBYLA/random):** paired differences about 0.000 to 0.004; the harness is a valid stand-in.
+- **Limit.** Run up to 20 qubits (harness arm, p = 2): P(optimum) about 5e-4 at 20 qubits against 1e-6 uniform. Serial cost per evaluation is
+  0.04 s at 16, 0.13 s at 18 and 0.69 s at 20 qubits for the PennyLane engine; larger sizes were not tried.
+- **Negative results and caveats.** 10 instances per cell is small. Family B and A are different problems; do not compare across them. Wall times from the
+  parallel run were contended (the serial table is the one of record). At 6 qubits, plain uniform random sampling with the same number of samples as QAOA's circuit
+  evaluations (about 330) finds the optimum more often (0.994) than 64 QAOA shots (0.93; family A: 0.994 vs 0.89), so QAOA is no cheaper there; from 8 qubits up
+  QAOA's 64 shots do better (8 qubits: 0.89 vs 0.74; 12 qubits: 0.43 vs 0.08), but that is shots against a different sample count, not a cost comparison.
+- **Engine bug fixed.** `build_qubo`'s penalty (range + 1) was too weak for large, similar rewards, making the QUBO minimum infeasible on 7 of 50 probe
+  instances. The engine default is now `penalty_rule="sufficient"`; Phase 6 paths pass `"legacy"` and reproduce exactly (golden digests for all 1,050 tasks;
+  `data/sft/train_traces.jsonl` regenerates byte-identical).
+
+Run: `python scripts/phase7_run.py run`, `python scripts/phase7_run.py timing`, `python scripts/phase7_report.py`. Raw per-run caches are git-ignored.
+
 ## Phase 6, session 1 (done): SFT warm start, set up but not yet trained
 Goal: teach a small Qwen the tool-call and submit format and the tool-informed behaviour, so RL starts from a policy that produces valid submissions (the base 0.5B had 0 percent). **No GVPO and no 1.5B training happened in this session**; the 1.5B run is a Colab T4 job (notebook below), so there is no SFT result yet. The gates were written first and pushed before any trace was generated: `docs/phase6_gates.md` (A: valid-submission rate >= 90 percent; B: mean final reward above the no-tool plan +0.743 with the 95 percent bootstrap CI excluding it; C: say so if it only matches rule-based +0.727; gates are decided on greedy decoding).
 
