@@ -165,3 +165,20 @@ def test_qaoa_on_a_one_qubit_qubo():
     out = solve_qaoa(q, layers=1, decode_fn=lambda qubo, x: {"feasible": True})
     assert out["x"] == [1] and out["energy"] == pytest.approx(-1.0) and out["n_qubits"] == 1
     assert out["optimum_probability"] > 0.5
+
+
+# --- penalty strength (Phase 7 regression) -------------------------------------------------------
+@pytest.mark.parametrize("rewards", [
+    [{"raise_orbit": 1.19, "safe": 1.11}, {"raise_orbit": 1.18, "safe": 1.10}, {"raise_orbit": 1.22, "safe": 1.14}],
+    [{"raise_orbit": 5.0, "safe": 4.9, "hold": 4.8}] * 2,
+    [{"raise_orbit": -3.0, "safe": -3.1}] * 2,
+])
+def test_penalty_beats_any_reward_when_rewards_are_large_and_similar(rewards):
+    """Loophole: with a small reward range but large rewards, the old penalty (range + 1) was below one
+    reward, so taking two actions for one asset lowered the energy: the QUBO minimum was infeasible."""
+    actions = list(rewards[0])
+    qubo = engine.build_qubo(rewards, [0] * len(rewards), actions, "raise_orbit")
+    exact = engine.solve_exact(qubo)
+    assert exact["feasible"]
+    ort = engine.solve_ortools(rewards, [0] * len(rewards), actions, "raise_orbit")
+    assert exact["objective"] == pytest.approx(ort["objective"], abs=1e-3)

@@ -7,8 +7,9 @@ Model (x[i,a] = 1 if item i takes action a; rewards R[i][action], higher is bett
     E(x) = - sum R[i,a] x[i,a]
            + P * sum_i (sum_a x[i,a] - 1)^2                              one action per item
            + P * sum_{i<j, same group} x[i,excl] x[j,excl]               one exclusive action per group
-with P = (max R - min R) + 1, large enough that breaking a constraint never pays. Bit i*len(actions)+a
-is x[i,a]. The group term is the capacity-1 case of "load over capacity" without slack variables.
+with P = max(max R - min R, max R, -min R) + 1, large enough that breaking a constraint never pays (the range
+alone is not enough when rewards are large and similar: a second action then still lowers the energy).
+Bit i*len(actions)+a is x[i,a]. The group term is the capacity-1 case of "load over capacity" without slack variables.
 
 Exact enumeration (all_bitstrings, all_energies, solve_exact) is for small problems only: 2**n states.
 Solvers outside this module (QAOA, annealers) work on the Qubo or on its Ising form (qubo_to_ising).
@@ -50,7 +51,7 @@ def build_qubo(rewards: Sequence[dict[str, float]], groups: Sequence[Any], actio
     n_items, n_act = len(rewards), len(actions)
     excl = actions.index(exclusive_action)
     allr = [r[a] for r in rewards for a in actions]
-    penalty = (max(allr) - min(allr)) + 1.0
+    penalty = max(max(allr) - min(allr), max(allr), -min(allr)) + 1.0
     n = n_items * n_act
     Q = np.zeros((n, n))
     const = 0.0
