@@ -136,5 +136,18 @@ history alone does not prove ordering; the file timestamps do the work:
 Gate thresholds, sizes, seeds and instance counts were fixed before 11:11 and have not been changed since.
 The only edits after the first draft are Amendment 1 above, written before the grid.
 
+## Amendment 2 (2026-10-30, after the grid started; no gate changed): penalty rule is explicit
+`build_qubo` now takes `penalty_rule`: `"sufficient"` (the engine default, P = max(range, max R, -min R) + 1,
+the fix described in Amendment 1) or `"legacy"` (the original P = range + 1). Phase 6 paths pass `"legacy"`
+and reproduce bit-for-bit (golden digests for all 1,050 train and eval tasks). **Every Phase 7 instance uses
+`"sufficient"`.** The grid started (11:11) before this commit. Why the running grid uses "sufficient": its
+worker processes imported `verispace_engine.qubo` at start, when the file already held the sufficient
+formula (first committed as 9b4b555 after the run began, but present on disk since before 11:01, when
+Amendment 1 described it); the explicit parameter added now defaults to that same formula, so the code the
+workers ran and the code in this commit build identical matrices for the same input
+(`tests/test_engine_qubo.py` pins both rules). Cached baselines show the exact optimum feasible on every
+cached instance (G0(i)), which the legacy rule fails on some of these instances. All gate text (G0 to G6,
+metrics, sizes, seeds, instance counts) predates the first run; see "Registration timeline".
+
 ## Outcome
 (Filled in after the runs.)
