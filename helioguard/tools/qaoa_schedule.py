@@ -49,9 +49,11 @@ def action_rewards(sc: Spacecraft, scen: dict) -> dict[str, float]:
 
 
 # --- QUBO (the generic code lives in verispace_engine.qubo) -----------------------------------
-def build_qubo(rewards: list[dict[str, float]], windows: list[int]) -> Qubo:
-    """Fleet QUBO: items = assets, groups = ground windows, exclusive action = raise_orbit."""
-    return _engine.build_qubo(rewards, windows, ACTION_NAMES, ACTION_NAMES[RAISE])
+def build_qubo(rewards: list[dict[str, float]], windows: list[int], penalty_rule: str = "legacy") -> Qubo:
+    """Fleet QUBO: items = assets, groups = ground windows, exclusive action = raise_orbit.
+    Defaults to the "legacy" penalty (range + 1) so Phase 6 tool outputs, traces and evals reproduce exactly;
+    the Phase 7 benchmark builds its instances with the engine's "sufficient" default."""
+    return _engine.build_qubo(rewards, windows, ACTION_NAMES, ACTION_NAMES[RAISE], penalty_rule)
 
 
 def solve_ortools(rewards: list[dict[str, float]], windows: list[int]) -> dict[str, Any]:

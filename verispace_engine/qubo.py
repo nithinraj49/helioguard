@@ -7,8 +7,11 @@ Model (x[i,a] = 1 if item i takes action a; rewards R[i][action], higher is bett
     E(x) = - sum R[i,a] x[i,a]
            + P * sum_i (sum_a x[i,a] - 1)^2                              one action per item
            + P * sum_{i<j, same group} x[i,excl] x[j,excl]               one exclusive action per group
-with P = max(max R - min R, max R, -min R) + 1, large enough that breaking a constraint never pays (the range
-alone is not enough when rewards are large and similar: a second action then still lowers the energy).
+with P chosen by `penalty_rule`:
+    "sufficient" (default)  P = max(max R - min R, max R, -min R) + 1, large enough that breaking a constraint
+                            never pays (the range alone is not enough when rewards are large and similar: a
+                            second action then still lowers the energy);
+    "legacy"                P = (max R - min R) + 1, the original rule, kept so earlier results reproduce exactly.
 Bit i*len(actions)+a is x[i,a]. The group term is the capacity-1 case of "load over capacity" without slack variables.
 
 Exact enumeration (all_bitstrings, all_energies, solve_exact) is for small problems only: 2**n states.
@@ -22,8 +25,11 @@ from typing import Any, Sequence
 
 import numpy as np
 
-__all__ = ["Qubo", "build_qubo", "qubo_energy", "all_bitstrings", "all_energies", "decode", "solve_exact",
+__all__ = ["Qubo", "PENALTY_RULES", "build_qubo", "qubo_energy", "all_bitstrings", "all_energies", "decode", "solve_exact",
            "solve_ortools", "qubo_to_ising"]
+
+
+PENALTY_RULES = ("sufficient", "legacy")
 
 
 @dataclass
@@ -43,15 +49,19 @@ class Qubo:
 
 
 def build_qubo(rewards: Sequence[dict[str, float]], groups: Sequence[Any], actions: Sequence[str],
-               exclusive_action: str) -> Qubo:
-    """Build the QUBO described in the module docstring. `rewards[i]` maps every action to a number."""
+               exclusive_action: str, penalty_rule: str = "sufficient") -> Qubo:
+    """Build the QUBO described in the module docstring. `rewards[i]` maps every action to a number.
+    `penalty_rule` is "sufficient" (default) or "legacy" (the original range + 1)."""
+    if penalty_rule not in PENALTY_RULES:
+        raise ValueError(f"unknown penalty_rule {penalty_rule!r}; choose from {PENALTY_RULES}")
     actions = list(actions)
     if len(rewards) != len(groups):
         raise ValueError("rewards and groups must have one entry per item")
     n_items, n_act = len(rewards), len(actions)
     excl = actions.index(exclusive_action)
     allr = [r[a] for r in rewards for a in actions]
-    penalty = max(max(allr) - min(allr), max(allr), -min(allr)) + 1.0
+    spread = max(allr) - min(allr)
+    penalty = (max(spread, max(allr), -min(allr)) if penalty_rule == "sufficient" else spread) + 1.0
     n = n_items * n_act
     Q = np.zeros((n, n))
     const = 0.0

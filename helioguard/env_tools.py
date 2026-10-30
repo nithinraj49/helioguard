@@ -165,13 +165,9 @@ class _QaoaSchedule(_Base):
                    "cover forecast error or the launch.")
     schema = {"type": "object", "properties": {"layers": {"type": "integer"}}, "required": []}
 
-    def run(self, layers: int = 2) -> dict[str, Any]:
+    def fleet_qubo(self):
+        """(rewards, windows, qubo) for the task's fleet. Phase 6 path: build_qubo defaults to the legacy penalty."""
         box, task = self.box, self.box.task
-        if not 1 <= layers <= 4:
-            raise ValueError("layers must be between 1 and 4")
-        if len(task["fleet"]) * len(ACTION_NAMES) > 12:
-            raise ValueError("fleet too large for the simulator (at most 4 assets)")
-        ids = [a["id"] for a in task["fleet"]]
         rewards = []
         for a in task["fleet"]:
             r = action_rewards(box.spacecraft(a["id"]), box.scen(a["id"]))
@@ -179,7 +175,16 @@ class _QaoaSchedule(_Base):
                 r = {**r, RAISE: -1.0}
             rewards.append(r)
         windows = [a["window"] for a in task["fleet"]]
-        qubo = build_qubo(rewards, windows)
+        return rewards, windows, build_qubo(rewards, windows)
+
+    def run(self, layers: int = 2) -> dict[str, Any]:
+        box, task = self.box, self.box.task
+        if not 1 <= layers <= 4:
+            raise ValueError("layers must be between 1 and 4")
+        if len(task["fleet"]) * len(ACTION_NAMES) > 12:
+            raise ValueError("fleet too large for the simulator (at most 4 assets)")
+        ids = [a["id"] for a in task["fleet"]]
+        rewards, windows, qubo = self.fleet_qubo()
         out = {"qaoa": solve_qaoa(qubo, layers=layers), "ortools": solve_ortools(rewards, windows),
                "exact": solve_exact(qubo)}
         for key, res in out.items():

@@ -182,3 +182,42 @@ def test_penalty_beats_any_reward_when_rewards_are_large_and_similar(rewards):
     assert exact["feasible"]
     ort = engine.solve_ortools(rewards, [0] * len(rewards), actions, "raise_orbit")
     assert exact["objective"] == pytest.approx(ort["objective"], abs=1e-3)
+
+
+# --- penalty_rule: "legacy" reproduces the original matrix, "sufficient" is the default ----------------
+ACTIONS = ["raise_orbit", "safe_mode_edge_on", "hold"]
+
+
+def test_legacy_rule_reproduces_the_original_matrix_exactly():
+    q = engine.build_qubo(REWARDS, WINDOWS, ACTIONS, "raise_orbit", penalty_rule="legacy")
+    assert digest(q.Q) == GOLDEN_Q and q.const == pytest.approx(9.6)       # P = (1.2 - -1.0) + 1 = 3.2
+
+
+def test_the_helioguard_wrapper_defaults_to_legacy_and_the_engine_to_sufficient():
+    assert np.array_equal(old.build_qubo(REWARDS, WINDOWS).Q, engine.build_qubo(REWARDS, WINDOWS, ACTIONS, "raise_orbit", "legacy").Q)
+    sm = [{"raise_orbit": 1.19, "safe": 1.11}] * 2
+    legacy = engine.build_qubo(sm, [0, 0], ["raise_orbit", "safe"], "raise_orbit", "legacy")
+    default = engine.build_qubo(sm, [0, 0], ["raise_orbit", "safe"], "raise_orbit")
+    assert default.const == pytest.approx(2 * (1.19 + 1)) and legacy.const == pytest.approx(2 * (0.08 + 1))   # P per asset
+    assert default.const > legacy.const                                       # sufficient is the stronger penalty
+
+
+def test_rules_agree_when_the_rewards_straddle_zero_widely():
+    a = engine.build_qubo(REWARDS, WINDOWS, ACTIONS, "raise_orbit", "legacy")
+    b = engine.build_qubo(REWARDS, WINDOWS, ACTIONS, "raise_orbit", "sufficient")
+    assert np.array_equal(a.Q, b.Q) and a.const == b.const
+
+
+def test_legacy_rule_still_has_the_weak_penalty_and_sufficient_fixes_it():
+    """The loophole the rule exists to document: legacy is wrong for large similar rewards, kept only for reproduction."""
+    rewards = [{"raise_orbit": 1.19, "safe": 1.11}, {"raise_orbit": 1.18, "safe": 1.10}, {"raise_orbit": 1.22, "safe": 1.14}]
+    acts = ["raise_orbit", "safe"]
+    weak = engine.build_qubo(rewards, [0] * 3, acts, "raise_orbit", "legacy")
+    good = engine.build_qubo(rewards, [0] * 3, acts, "raise_orbit", "sufficient")
+    assert not engine.solve_exact(weak)["feasible"]
+    assert engine.solve_exact(good)["feasible"]
+
+
+def test_unknown_penalty_rule_is_rejected():
+    with pytest.raises(ValueError):
+        engine.build_qubo(REWARDS, WINDOWS, ACTIONS, "raise_orbit", penalty_rule="strong")
