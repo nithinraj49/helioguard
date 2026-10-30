@@ -144,3 +144,14 @@ No threshold changed. Registers the run and records the T4 smoke test.
   on greedy.
 - **Environment pins.** The notebook pins peft, transformers and accelerate and requires torchao>=0.16.0;
   the versions in use are printed in the notebook's check cell and are to be copied into the run notes.
+
+## Note 2026-10-30 (Phase 7 session 1): QUBO penalty rule; no gate or threshold changed
+Phase 7 found that `build_qubo`'s original penalty (range + 1) can be too weak when rewards are large and
+similar, and added an explicit `penalty_rule`: "sufficient" (new engine default) and "legacy" (the original).
+**Phase 6 uses "legacy"**, so every Phase 6 QUBO, `qaoa_schedule` output, trace and evaluation reproduces
+exactly: a test (`tests/test_phase6_qubo_unchanged.py`) pins the fleet QUBO of all 1,050 train and eval tasks to
+digests built with the original code. On those 1,050 tasks the legacy penalty gave a **feasible exact optimum
+on all of them**, and exact and OR-Tools objectives agree on all of them under both rules. For reference, the
+two rules give different penalty values on 887 tasks, 6 train tasks sit below the sufficiency bound (still
+feasible), and 10 train tasks have a different but equally good exact plan (ties). `data/sft/train_traces.jsonl`
+holds no QAOA outputs (no `approx_ratio` or `expected_energy`). No Phase 6 data was modified.
