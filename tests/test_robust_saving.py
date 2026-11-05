@@ -14,7 +14,8 @@ ROOT = Path(__file__).parent.parent
 class FakeApi:
     """In-memory Hub repo. `lose` names files the 'Hub' silently drops; `shrink` truncates them."""
 
-    def __init__(self, private=True, lose=(), shrink=()):
+    def __init__(self, private=True, lose=(), shrink=(), fail_with=None):
+        self.fail_with = fail_with
         self.files: dict[str, bytes] = {}
         self.private, self.lose, self.shrink = private, set(lose), set(shrink)
         self.commits: list[str] = []
@@ -35,6 +36,12 @@ class FakeApi:
             self.files[op.path_in_repo] = data[:-1] if op.path_in_repo in self.shrink else data
 
     def list_repo_tree(self, repo_id, path_in_repo=None, recursive=False, repo_type=None):
+        if self.fail_with is not None:
+            raise self.fail_with
+        if path_in_repo is None and not self.files:
+            raise _real_404()                        # the real Hub: 404 on an empty repo
+        if path_in_repo is not None and not any(p.startswith(path_in_repo + "/") for p in self.files):
+            raise _real_404()                        # ... and on a path that does not exist (yet)
         yield SimpleNamespace(path="a_folder")      # folders carry no size
         for p, d in sorted(self.files.items()):
             if path_in_repo is None or p.startswith(path_in_repo + "/"):
@@ -45,6 +52,21 @@ class FakeApi:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(self.files[filename])
         return str(out)
+
+
+def _real_404(name="RemoteEntryNotFoundError"):
+    """Build the real huggingface_hub exception (as the Hub raises it on an empty repo)."""
+    from huggingface_hub import errors
+    cls = getattr(errors, name)
+    try:
+        return cls("404 Client Error: checkpoint does not exist on main")
+    except TypeError:                                # HfHubHTTPError wants a response object
+        try:
+            import httpx2 as httpx                   # the HTTP module this huggingface_hub version uses
+        except ImportError:
+            import httpx
+        req = httpx.Request("GET", "https://huggingface.co/api/models/me/x/tree/main/checkpoint")
+        return cls("404: checkpoint does not exist on main", response=httpx.Response(404, request=req))
 
 
 def hub(**kw):
@@ -117,6 +139,86 @@ def test_restore_checkpoint_from_drive_folder_or_hub(tmp_path):
     assert (ck2 / "latest" / "state.pt").read_bytes() == b"s22"
     with pytest.raises(FileNotFoundError):
         restore_checkpoint(tmp_path / "x", drive_dir=tmp_path / "none")
+
+
+# --- empty repo: the real Hub raises 404 for a path that does not exist yet --------------------------------
+def test_empty_repo_listing_and_meta_treat_the_404_as_no_checkpoint():
+    h = hub()
+    with pytest.raises(type(_real_404())):                       # the fake really raises the Hub's exception
+        list(h.api.list_repo_tree("me/x", path_in_repo="checkpoint"))
+    assert h.list_files("checkpoint") == {} and h.list_files() == {}
+    assert h.latest_meta() is None
+
+
+@pytest.mark.parametrize("name", ["RemoteEntryNotFoundError", "EntryNotFoundError"])
+def test_both_not_found_errors_are_treated_as_missing(name):
+    h = hub()
+    h.api.fail_with = _real_404(name)
+    assert h.list_files("checkpoint") == {} and h.latest_meta() is None
+
+
+@pytest.mark.parametrize("name", ["RepositoryNotFoundError", "HfHubHTTPError", "RevisionNotFoundError"])
+def test_other_hub_errors_still_raise(name):
+    h = hub()
+    h.api.fail_with = _real_404(name)
+    with pytest.raises(type(h.api.fail_with)):
+        h.list_files("checkpoint")
+    with pytest.raises(type(h.api.fail_with)):
+        h.latest_meta()
+    for exc in (PermissionError("401"), ConnectionError("down"), TimeoutError()):
+        h.api.fail_with = exc
+        with pytest.raises(type(exc)):
+            h.list_files()
+
+
+def test_a_404_on_the_step_file_download_means_no_checkpoint_other_errors_raise():
+    h = hub()
+    h.upload({"checkpoint/STEP.json": b"{}"}, "m", verbose=False)
+
+    def boom(exc):
+        def f(*a, **k):
+            raise exc
+        return f
+    h.api.hf_hub_download = boom(_real_404("EntryNotFoundError"))
+    assert h.latest_meta() is None
+    h.api.hf_hub_download = boom(ConnectionError("down"))
+    with pytest.raises(ConnectionError):
+        h.latest_meta()
+
+
+def test_downloading_from_an_empty_repo_is_a_clear_error_and_restore_reports_it(tmp_path):
+    h = hub()
+    with pytest.raises(FileNotFoundError, match="no checkpoint"):
+        h.download_checkpoint(tmp_path / "latest")
+    with pytest.raises(FileNotFoundError):
+        restore_checkpoint(tmp_path / "ck", drive_dir=tmp_path / "none", hub=h)
+    assert not (tmp_path / "ck" / "latest").exists()
+
+
+def test_first_upload_to_an_empty_repo_verifies():
+    h = hub()
+    assert h.upload({"checkpoint/STEP.json": b"{}", "x": b"1"}, "first", verbose=False) == {
+        "checkpoint/STEP.json": 2, "x": 1}
+
+
+def test_empty_repo_then_first_upload_then_resume_through_training(tmp_path):
+    pytest.importorskip("torch")
+    from test_sft import synthetic_rows, tiny_build, tiny_cfg
+    from verispace_engine.sft import train
+    rows, h = synthetic_rows(24), hub()
+    assert h.latest_meta() is None                               # empty repo on start
+    first = train(tiny_cfg(tmp_path, "a"), rows, tiny_build, stop_after_steps=3, hub=h)   # from step 0, first upload
+    assert first["resumed_from"] == 0 and h.latest_meta()["step"] == 3
+    second = train(tiny_cfg(tmp_path, "fresh"), rows, tiny_build, hub=h)                  # fresh runtime resumes
+    assert second["resumed_from"] == 3 and second["finished"]
+
+
+def test_eval_on_an_empty_repo_uploads_and_verifies(tmp_path):
+    from helioguard.sft_eval import evaluate
+    h = hub()
+    evaluate(GarbageBackend(), n=2, out_dir=tmp_path, tag="t", greedy_only=True, hub=h, upload_every=1,
+             baseline_dir=tmp_path / "nobase")
+    assert h.list_files("eval") and h.latest_meta() is None
 
 
 # --- training: mirror to the Hub, resume on a fresh runtime from the Hub only --------------------------

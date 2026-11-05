@@ -22,6 +22,13 @@ CKPT_PREFIX = "checkpoint"
 __all__ = ["CKPT_PREFIX", "HubSync", "HubVerifyError", "restore_checkpoint"]
 
 
+def _not_found() -> tuple[type[BaseException], ...]:
+    """The two 'path does not exist in the repo' errors, and nothing else (auth, network, missing repo still raise)."""
+    from huggingface_hub import errors
+    return tuple(c for c in (getattr(errors, "RemoteEntryNotFoundError", None),
+                             getattr(errors, "EntryNotFoundError", None)) if c is not None)
+
+
 class HubVerifyError(RuntimeError):
     """The Hub repo does not contain what was just uploaded."""
 
@@ -64,11 +71,16 @@ class HubSync:
         return expected
 
     def list_files(self, prefix: str | None = None) -> dict[str, int]:
+        """{path: size} under prefix. A prefix (or a whole repo) with nothing in it yields {}: on an empty repo
+        the Hub answers 404 'does not exist on main', which means 'no files yet', not an error."""
         out = {}
-        for item in self.api.list_repo_tree(self.repo_id, path_in_repo=prefix, recursive=True, repo_type="model"):
-            size = getattr(item, "size", None)
-            if size is not None:                              # folders carry no size
-                out[item.path] = int(size)
+        try:
+            for item in self.api.list_repo_tree(self.repo_id, path_in_repo=prefix, recursive=True, repo_type="model"):
+                size = getattr(item, "size", None)
+                if size is not None:                          # folders carry no size
+                    out[item.path] = int(size)
+        except _not_found():
+            return {}
         return out
 
     def upload_checkpoint(self, latest_dir: str | Path, step: int, cfg_hash: str,
@@ -89,13 +101,18 @@ class HubSync:
         if f"{CKPT_PREFIX}/STEP.json" not in self.list_files(CKPT_PREFIX):
             return None
         with tempfile.TemporaryDirectory() as tmp:
-            p = self.api.hf_hub_download(self.repo_id, f"{CKPT_PREFIX}/STEP.json", repo_type="model", local_dir=tmp)
+            try:
+                p = self.api.hf_hub_download(self.repo_id, f"{CKPT_PREFIX}/STEP.json", repo_type="model", local_dir=tmp)
+            except _not_found():
+                return None
             return json.loads(Path(p).read_text(encoding="utf-8"))
 
     def download_checkpoint(self, dest_latest: str | Path) -> int:
         """Download the Hub checkpoint into dest_latest (replacing it) and return its step."""
         dest = Path(dest_latest)
         listing = self.list_files(CKPT_PREFIX)
+        if f"{CKPT_PREFIX}/STEP.json" not in listing:
+            raise FileNotFoundError(f"Hub repo {self.repo_id} has no checkpoint to download")
         stage = Path(tempfile.mkdtemp(prefix="hub_ckpt_", dir=dest.parent if dest.parent.exists() else None))
         try:
             for p, size in listing.items():
