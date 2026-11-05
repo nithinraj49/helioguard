@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Sequence
 
-from verispace_engine.harness.rollout import EpisodeResult, RolloutConfig, run_rollouts
+from verispace_engine.harness.rollout import EpisodeResult, RolloutConfig, rollout_task
 from verispace_engine.harness.stats import bootstrap_ci
 
 from .harness_env import ALLOWED_TYPES, EXTRA_ACTIONS, compact_observation, load
@@ -125,41 +126,142 @@ def gate_report(greedy: dict[str, Any]) -> dict[str, Any]:
             "gate_C_honesty": c}
 
 
+class FlushLog:
+    """JSONL log that appends each record and flushes it to disk at once (survives a killed runtime)."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def write(self, record: dict[str, Any]) -> None:
+        with self.path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+
+
+def load_episodes(path: str | Path) -> list[EpisodeResult]:
+    """Finished episodes saved in a harness JSONL file (a half-written last line is ignored)."""
+    out = []
+    p = Path(path)
+    if not p.exists():
+        return out
+    for line in p.read_text(encoding="utf-8").splitlines():
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("event") == "episode":
+            out.append(EpisodeResult(**{k: v for k, v in rec.items() if k in EpisodeResult.__dataclass_fields__}))
+    return out
+
+
+def _drop_unfinished_turns(path: Path) -> None:
+    """On restart, remove the turn records of an episode that never finished (it will be re-run in full)."""
+    if not path.exists():
+        return
+    recs = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            recs.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    done = {(r["task_id"], r.get("attempt", 0)) for r in recs if r.get("event") == "episode"}
+    keep = [r for r in recs if (r.get("task_id"), r.get("attempt", 0)) in done]
+    path.write_text("".join(json.dumps(r, default=str) + "\n" for r in keep), encoding="utf-8")
+
+
+def condition_files(out_dir: str | Path, tag: str, seeds: Sequence[int], greedy_only: bool = False) -> dict[str, Path]:
+    """Greedy first, then temperature 0.7 with one file per seed."""
+    out_dir = Path(out_dir)
+    files = {"greedy": out_dir / f"{tag}_greedy.jsonl"}
+    if not greedy_only:
+        files.update({f"t0.7_seed{s}": out_dir / f"{tag}_t0.7_seed{s}.jsonl" for s in seeds})
+    return files
+
+
+def aggregate(out_dir: str | Path, tag: str, tasks: Sequence[dict], seeds: Sequence[int] = (0, 1, 2),
+              greedy_only: bool = False, baseline_dir: str | Path = "results/phase6/baselines_compact",
+              model: str = "unknown") -> dict[str, Any]:
+    """Summary built from the saved episode files alone (no model needed). Partial files give a partial summary:
+    `complete` is False, the counts say how far each condition got, and no gates are issued."""
+    files = condition_files(out_dir, tag, seeds, greedy_only)
+    ids = [t["id"] for t in tasks]
+    got = {name: load_episodes(p) for name, p in files.items()}
+    progress = {name: {"episodes": len(r), "expected": len(ids)} for name, r in got.items()}
+    complete = all(len({x.task_id for x in r}) == len(ids) for r in got.values())
+    summary: dict[str, Any] = {"model": model, "tasks": len(ids), "complete": complete, "progress": progress}
+    greedy = got["greedy"]
+    if greedy:
+        summary["greedy"] = summarize_condition(greedy, tasks)
+    sampled = [r for name, rs in got.items() if name != "greedy" for r in rs]
+    if sampled:
+        summary["temperature_0.7_3_seeds"] = summarize_condition(sampled, tasks)
+    if complete:
+        summary["gates"] = gate_report(summary["greedy"])       # decided only on a complete greedy run
+    else:
+        summary["gates"] = None
+        summary["note"] = "partial: gates are issued only when every condition has finished all its episodes"
+    ref = Path(baseline_dir) / "baseline_no-tools_eval.jsonl"
+    if ref.exists() and greedy:                                 # secondary analyses (Amendment 1)
+        base_eps = load_episodes(ref)
+        summary["secondary"] = {"greedy_paired_vs_no_tool_plan": paired_vs_baseline(greedy, base_eps),
+                                **({"temperature_0.7_paired_vs_no_tool_plan": paired_vs_baseline(sampled, base_eps)}
+                                   if sampled else {})}
+        if summary["gates"]:
+            paired_ok = summary["secondary"]["greedy_paired_vs_no_tool_plan"]["ci_excludes_zero_above"]
+            if paired_ok != summary["gates"]["gate_B_value"]["pass"]:
+                summary["secondary"]["note"] = ("paired and unpaired Gate B disagree: unpaired "
+                                                f"{summary['gates']['gate_B_value']['pass']}, paired {paired_ok}; both reported")
+    if greedy:
+        summary["secondary"] = {**summary.get("secondary", {}),
+                                "quiet_task_action_mix_greedy": quiet_task_action_mix(files["greedy"], tasks)}
+    return summary
+
+
+def _upload_eval(hub, out_dir: Path, tag: str, message: str) -> None:
+    files = {f"eval/{p.name}": p for p in sorted(out_dir.glob(f"{tag}_*")) if p.is_file()}
+    if files:
+        hub.upload(files, message)
+
+
 def evaluate(backend, n: int = 50, seeds: Sequence[int] = (0, 1, 2), out_dir: str | Path = "results/phase6",
              tag: str = "sft", max_new_tokens: int = 256, greedy_only: bool = False,
-             baseline_dir: str | Path = "results/phase6/baselines_compact") -> dict[str, Any]:
+             baseline_dir: str | Path = "results/phase6/baselines_compact",
+             hub=None, upload_every: int = 10) -> dict[str, Any]:
+    """Resumable: every finished episode is appended (and fsynced) to its file at once; episodes already in the
+    files are skipped on restart; with `hub`, files are uploaded and verified every `upload_every` new episodes
+    and at the end of each condition. The summary is aggregated from the saved files alone."""
     env, ids = load("eval", n)
     tasks = [env._by_id[i] for i in ids]
     base = dict(max_new_tokens=max_new_tokens, allowed_types=tuple(ALLOWED_TYPES),
                 extra_actions=tuple(EXTRA_ACTIONS), compactor=compact_observation)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    greedy_log, sampled_log = out_dir / f"{tag}_greedy.jsonl", out_dir / f"{tag}_t0.7.jsonl"
-    for p in ((greedy_log,) if greedy_only else (greedy_log, sampled_log)):
-        p.write_text("", encoding="utf-8")
-    greedy = run_rollouts(env, ids, backend, RolloutConfig(attempts=1, temperature=0.0, seed=0, **base), greedy_log)
-    summary = {"model": backend.name, "tasks": len(ids), "greedy": summarize_condition(greedy, tasks)}
-    sampled = []
-    if not greedy_only:                                          # greedy-only is for quick integration checks
-        sampled = run_rollouts(env, ids, backend,
-                               RolloutConfig(attempts=len(seeds), temperature=0.7, seed=seeds[0], **base), sampled_log)
-        summary["temperature_0.7_3_seeds"] = summarize_condition(sampled, tasks)
-    summary["gates"] = gate_report(summary["greedy"])
-    ref = Path(baseline_dir) / "baseline_no-tools_eval.jsonl"
-    if ref.exists():                                            # secondary analyses (Amendment 1)
-        base = [EpisodeResult(**{k: v for k, v in rec.items() if k in EpisodeResult.__dataclass_fields__})
-                for rec in map(json.loads, ref.read_text(encoding="utf-8").splitlines())
-                if rec.get("event") == "episode"]
-        summary["secondary"] = {"greedy_paired_vs_no_tool_plan": paired_vs_baseline(greedy, base),
-                                **({"temperature_0.7_paired_vs_no_tool_plan": paired_vs_baseline(sampled, base)}
-                                   if sampled else {})}
-        paired_ok = summary["secondary"]["greedy_paired_vs_no_tool_plan"]["ci_excludes_zero_above"]
-        if paired_ok != summary["gates"]["gate_B_value"]["pass"]:
-            summary["secondary"]["note"] = ("paired and unpaired Gate B disagree: unpaired "
-                                            f"{summary['gates']['gate_B_value']['pass']}, paired {paired_ok}; both reported")
-    summary["secondary"] = {**summary.get("secondary", {}), "quiet_task_action_mix_greedy":
-                            quiet_task_action_mix(greedy_log, tasks)}
+    files = condition_files(out_dir, tag, seeds, greedy_only)
+    configs = {"greedy": RolloutConfig(attempts=1, temperature=0.0, seed=0, **base),
+               **{f"t0.7_seed{s}": RolloutConfig(attempts=1, temperature=0.7, seed=s, **base) for s in seeds}}
+    new_since_upload = 0
+    for name, path in files.items():                            # greedy first, then each seed in its own file
+        _drop_unfinished_turns(path)
+        done = {(r.task_id, r.attempt) for r in load_episodes(path)}
+        log = FlushLog(path)
+        for tid in ids:
+            if (tid, 0) in done:
+                continue
+            r = rollout_task(env, tid, backend, configs[name], 0, log)
+            new_since_upload += 1
+            print(f"[{name}] {tid}: final {r.final_reward:+.3f} tools {r.tool_calls} {r.failure or 'ok'} "
+                  f"({len(load_episodes(path))}/{len(ids)} saved)", flush=True)
+            if hub is not None and new_since_upload >= upload_every:
+                _upload_eval(hub, out_dir, tag, f"eval {tag}: {name} {len(load_episodes(path))}/{len(ids)}")
+                new_since_upload = 0
+        if hub is not None and new_since_upload:
+            _upload_eval(hub, out_dir, tag, f"eval {tag}: {name} finished")
+            new_since_upload = 0
+    summary = aggregate(out_dir, tag, tasks, seeds, greedy_only, baseline_dir, model=backend.name)
     (out_dir / f"{tag}_eval_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    if hub is not None:
+        _upload_eval(hub, out_dir, tag, f"eval {tag}: summary")
     return summary
 
 
@@ -172,9 +274,22 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     p.add_argument("--tag", default="sft")
     p.add_argument("--device", default=None)
     p.add_argument("--greedy-only", action="store_true", help="skip the temperature 0.7 runs (integration checks)")
+    p.add_argument("--hub-repo", default=None, help="private Hub repo for periodic eval uploads (token from HF_TOKEN)")
+    p.add_argument("--upload-every", type=int, default=10, help="episodes between Hub uploads")
+    p.add_argument("--aggregate-only", action="store_true", help="summarise the saved episode files; load no model")
     a = p.parse_args(argv)
-    from verispace_engine.harness.backends import HFBackend
-    summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter), a.n, out_dir=a.out, tag=a.tag, greedy_only=a.greedy_only)
+    if a.aggregate_only:
+        env, ids = load("eval", a.n)
+        summary = aggregate(a.out, a.tag, [env._by_id[i] for i in ids], greedy_only=a.greedy_only, model=a.model)
+        (Path(a.out) / f"{a.tag}_eval_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    else:
+        hub = None
+        if a.hub_repo:
+            from verispace_engine.hub import HubSync
+            hub = HubSync(a.hub_repo)
+        from verispace_engine.harness.backends import HFBackend
+        summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter), a.n, out_dir=a.out, tag=a.tag,
+                           greedy_only=a.greedy_only, hub=hub, upload_every=a.upload_every)
     print(json.dumps(summary["gates"], indent=2))
     return summary
 

@@ -10,7 +10,7 @@ dev = ["pytest>=8"]
 tools = ["pennylane>=0.40", "pennylane-lightning", "ortools", "torch"]
 quantum = ["pennylane>=0.40", "pennylane-lightning", "scipy"]
 harness = ["transformers", "requests", "torch"]
-sft = ["transformers", "peft", "torch", "safetensors"]
+sft = ["transformers", "peft", "torch", "safetensors", "huggingface_hub"]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -89,6 +89,14 @@ milliseconds; serial QAOA at 16 qubits took 9 s (360 simulator evaluations) agai
 
 Run: `python scripts/phase7_run.py run`, `python scripts/phase7_run.py timing`, `python scripts/phase7_report.py`. Raw per-run caches are git-ignored.
 
+## Phase 6: robust saving (after a Colab Drive sync failure lost a run)
+
+Checkpoints and eval files are now mirrored to a private Hugging Face Hub repo (`verispace_engine/hub.py`), with a verified
+listing after every upload (a missing file or size mismatch stops the run). Training resumes from whichever of Drive and Hub is
+further along; the checkpoint step is read back from `state.pt` and printed. `sft_eval` appends and fsyncs each episode, skips
+finished ones on restart, uploads every N episodes, and aggregates from saved files (`--aggregate-only`; partial runs get no
+gates). Greedy and temperature-0.7 seeds 0, 1, 2 now live in separate files. Parser, verifier, gates, metrics and the LR schedule are unchanged.
+
 ## Phase 6, session 1 (done): SFT warm start, set up but not yet trained
 Goal: teach a small Qwen the tool-call and submit format and the tool-informed behaviour, so RL starts from a policy that produces valid submissions (the base 0.5B had 0 percent). **No GVPO and no 1.5B training happened in this session**; the 1.5B run is a Colab T4 job (notebook below), so there is no SFT result yet. The gates were written first and pushed before any trace was generated: `docs/phase6_gates.md` (A: valid-submission rate >= 90 percent; B: mean final reward above the no-tool plan +0.743 with the 95 percent bootstrap CI excluding it; C: say so if it only matches rule-based +0.727; gates are decided on greedy decoding).
 

@@ -177,6 +177,37 @@ def _save_checkpoint(model, optimizer, scaler, step: int, cfg: SFTConfig, log: l
     return latest
 
 
+def _read_step(ckpt_dir: Path) -> int:
+    """Step stored in ckpt_dir/state.pt, read back from disk (proves the file is loadable)."""
+    import torch
+    return int(torch.load(ckpt_dir / "state.pt", weights_only=False, map_location="cpu")["step"])
+
+
+def _local_checkpoint(cfg: SFTConfig) -> Path | None:
+    root = Path(cfg.checkpoint_dir)
+    for d in (root / "latest", root / "old"):
+        if (d / "state.pt").exists():
+            return d
+    return None
+
+
+def _restore_from_hub_if_newer(cfg: SFTConfig, hub: Any) -> None:
+    """Fresh runtime (or a Drive that stopped syncing): fetch the Hub checkpoint when it is ahead of the local one."""
+    remote = hub.latest_meta()
+    if remote is None:
+        return
+    if remote.get("cfg_hash") != _cfg_hash(cfg):
+        raise ValueError("Hub checkpoint was written with a different training config; use a new Hub repo")
+    local = _local_checkpoint(cfg)
+    local_step = _read_step(local) if local else -1
+    if int(remote["step"]) > local_step:
+        step = hub.download_checkpoint(Path(cfg.checkpoint_dir) / "latest")
+        shutil.rmtree(Path(cfg.checkpoint_dir) / "old", ignore_errors=True)
+        print(f"resume: downloaded step {step} from Hub {hub.repo_id} (local was {local_step if local else 'empty'})", flush=True)
+    else:
+        print(f"resume: local checkpoint step {local_step} is at least as new as Hub step {remote['step']}", flush=True)
+
+
 def _load_checkpoint(model, optimizer, scaler, cfg: SFTConfig) -> tuple[int, list[dict]]:
     import torch
     root = Path(cfg.checkpoint_dir)
@@ -237,9 +268,11 @@ def _build_model(cfg: SFTConfig, tokenizer_hint: Any = None):
 
 def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
           build: Callable[[SFTConfig], tuple[Any, Any, str]] | None = None,
-          stop_after_steps: int | None = None) -> dict[str, Any]:
+          stop_after_steps: int | None = None, hub: Any = None) -> dict[str, Any]:
     """Run (or resume) SFT. `build(cfg) -> (peft_model, tokenizer, device)` lets tests supply a tiny model.
-    `stop_after_steps` ends the run early after checkpointing (to test resuming). Returns a summary."""
+    `stop_after_steps` ends the run early after checkpointing (to test resuming). Returns a summary.
+    `hub` (a verispace_engine.hub.HubSync) mirrors every checkpoint and the final outputs to a private Hub
+    repo, and resumes from it when it is ahead of the local checkpoint. Training maths is unchanged."""
     import torch
     git_commit, git_dirty = git_state()
     torch.manual_seed(cfg.seed)
@@ -257,11 +290,29 @@ def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
     optimizer = torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     use_scaler = device == "cuda" and any(p.dtype == torch.float16 for p in model.parameters())
     scaler = torch.amp.GradScaler("cuda") if use_scaler else None
+    if hub is not None:
+        _restore_from_hub_if_newer(cfg, hub)
     step, log = _load_checkpoint(model, optimizer, scaler, cfg)
     resumed_from = step
     out_dir = Path(cfg.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / "train_log.jsonl"
+    if step:                                    # rebuild the log file from the checkpoint (it may be missing or stale)
+        with log_path.open("w", encoding="utf-8") as f:
+            f.writelines(json.dumps(r) + "\n" for r in log if r["step"] % cfg.log_every == 0)
+
+    def make_summary() -> dict[str, Any]:
+        return {"model": cfg.model, "trainer": getattr(model, "trainer_name", "custom"), "training_seed": cfg.seed,
+                "git_commit": git_commit, "git_dirty": git_dirty,
+                "steps_done": step, "steps_total": total, "resumed_from": resumed_from,
+                "examples": len(examples), "skipped_too_long": skipped, "steps_per_epoch": steps_per_epoch,
+                "final_loss": log[-1]["loss"] if log else None, "first_loss": log[0]["loss"] if log else None,
+                "config": asdict(cfg), "finished": step == total}
+
+    def write_summary() -> dict[str, Any]:
+        summary = make_summary()
+        (out_dir / "train_summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+        return summary
     last_ckpt, started = time.time(), time.time()
     model.train()
 
@@ -297,17 +348,28 @@ def train(cfg: SFTConfig, rows: Sequence[dict] | None = None,
                 f.write(json.dumps(rec) + "\n")
         stopping = stop_after_steps is not None and step - resumed_from >= stop_after_steps
         if stopping or step == total or (time.time() - last_ckpt) / 60 >= cfg.checkpoint_minutes:
-            _save_checkpoint(model, optimizer, scaler, step, cfg, log)
+            if step == total:                   # final adapter and summary first, so the last upload carries them
+                model.save_pretrained(str(out_dir / "adapter"))
+            latest = _save_checkpoint(model, optimizer, scaler, step, cfg, log)
             last_ckpt = time.time()
+            write_summary()
+            read_back = _read_step(latest)      # prove the file on disk loads, and say which step it holds
+            if read_back != step:
+                raise RuntimeError(f"checkpoint at {latest} reads back step {read_back}, expected {step}")
+            print(json.dumps({"event": "checkpoint", "step": step, "verified_step_in_state_pt": read_back,
+                              "path": str(latest)}), flush=True)
+            if hub is not None:
+                extra = {"train_summary.json": out_dir / "train_summary.json", "train_log.jsonl": log_path}
+                if step == total:
+                    extra.update({f"adapter/{f.name}": f for f in (out_dir / "adapter").glob("*") if f.is_file()})
+                hub.upload_checkpoint(latest, step, _cfg_hash(cfg), extra)
         if stopping:
             break
-    if step == total:
+    if step == total and resumed_from == total:      # resumed a finished run: nothing trained, still publish the outputs
         model.save_pretrained(str(out_dir / "adapter"))
-    summary = {"model": cfg.model, "trainer": getattr(model, "trainer_name", "custom"), "training_seed": cfg.seed,
-               "git_commit": git_commit, "git_dirty": git_dirty,
-               "steps_done": step, "steps_total": total, "resumed_from": resumed_from,
-               "examples": len(examples), "skipped_too_long": skipped, "steps_per_epoch": steps_per_epoch,
-               "final_loss": log[-1]["loss"] if log else None, "first_loss": log[0]["loss"] if log else None,
-               "config": asdict(cfg), "finished": step == total}
-    (out_dir / "train_summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
-    return summary
+        write_summary()
+        if hub is not None and (latest := _local_checkpoint(cfg)) is not None:
+            extra = {"train_summary.json": out_dir / "train_summary.json", "train_log.jsonl": log_path,
+                     **{f"adapter/{f.name}": f for f in (out_dir / "adapter").glob("*") if f.is_file()}}
+            hub.upload_checkpoint(latest, step, _cfg_hash(cfg), extra)
+    return write_summary()
