@@ -11,6 +11,8 @@ data/sft/*.jsonl
 results/phase6/*/checkpoints/
 results/phase6/*/adapter/
 results/phase6/sft_smoke_0p5b/
+# base-model eval outputs; the five committed scripted baselines stay tracked
+results/phase6/baselines_compact/
 
 # Phase 7 raw per-run caches (summaries and tables are committed)
 results/phase7/cache/

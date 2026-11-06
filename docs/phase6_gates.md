@@ -58,8 +58,81 @@ This selects easier tasks for training (hard tasks the expert gets wrong are dro
 limitation.
 
 ## Outcome
-Not run yet. Session 1 prepared traces (800 kept of 1,000), the trainer, the notebook and the evaluation hook;
-the 1.5B SFT run and the evaluation against these gates are still to do.
+Measured 2026-11, one registered run (Qwen2.5-1.5B-Instruct + LoRA, final checkpoint, 50 eval tasks). No gate, threshold,
+parser, verifier or metric was changed; this section only records results. Source files:
+`results/phase6/train_summary.json` and `results/phase6/sft_1p5b_eval_summary.json`.
+
+### Gate verdicts (greedy, the condition the gates are decided on)
+| Gate | Rule | Measured | Verdict |
+|---|---|---|---|
+| A, format | valid-submission rate >= 0.90 | 1.0 (50 of 50 episodes) | **Passed** |
+| B, value | lower bound of the 95% CI of mean final reward must exceed +0.743 | mean +0.825, 95% CI +0.717 to +0.908; lower bound +0.717 | **Failed** |
+| C, honesty | compare with the rule-based plan (+0.727) | mean +0.825, CI +0.717 to +0.908 contains +0.727 | The SFT model **only matches** the rule-based plan |
+
+Gate B fails because the lower bound (+0.717) is below the no-tool plan's +0.743, even though the point estimate is above it.
+Gate C is not a pass: the CI contains the rule-based plan's +0.727, so the data do not separate the two.
+
+### Other greedy measures (secondary)
+Percent optimal 24% (95% CI 12% to 36%). Tool calls per episode 9.86 (CI 9.72 to 9.96). No failure episodes.
+
+### Temperature 0.7, seeds 0, 1, 2 (150 episodes, secondary)
+Valid-submission rate 1.0. Mean final reward +0.636 (95% CI +0.525 to +0.739). Percent optimal 22% (CI 12.7% to 32%).
+Tool calls per episode 9.86.
+
+### Paired analysis against the no-tool plan (secondary, not a gate)
+Per-task difference in final reward, model minus the no-tool plan (compact view), 50 tasks, same bootstrap.
+| Condition | Mean difference | 95% CI | CI excludes zero above? |
+|---|---|---|---|
+| Greedy | +0.082 | -0.029 to +0.169 | No |
+| Temperature 0.7 (3 seeds) | -0.107 | -0.220 to 0.0 | No |
+
+The paired and unpaired Gate B verdicts agree (both: not shown to beat the no-tool plan).
+
+### Per-disruption breakdown (descriptive, greedy; a task can carry several disruption types, so groups overlap)
+Small groups (3 to 5 tasks) are anecdotes, not estimates.
+| Disruption | Tasks | Valid rate | Mean final reward | Percent optimal |
+|---|---|---|---|---|
+| forecast_error | 25 | 1.0 | +0.905 | 28.0% |
+| storm_stronger | 17 | 1.0 | +0.839 | 23.5% |
+| storm_longer | 20 | 1.0 | +0.785 | 25.0% |
+| thruster_failure | 15 | 1.0 | +0.785 | 20.0% |
+| launch_slip | 11 | 1.0 | +0.799 | 9.1% |
+| none | 5 | 1.0 | +0.858 | 20.0% |
+| ground_outage | 3 | 1.0 | +0.205 | 0.0% |
+
+### Quiet-task action mix (descriptive, greedy, not a gate)
+On the 5 tasks with no disruption listed, per-asset actions chosen by the model against the stored optimum's mix:
+| Action | Model | Stored optimum |
+|---|---|---|
+| safe_mode_edge_on | 12 | 10 |
+| raise_orbit | 5 | 7 |
+
+All 5 tasks received a submission. The model chose safe mode on 2 more assets than the optimum did.
+
+### Run details
+- Model Qwen/Qwen2.5-1.5B-Instruct, trainer `peft` (transformers + PEFT), training seed 0, config `configs/sft_1p5b.json`
+  (LoRA r 16, alpha 32, lr 2e-4, 2 epochs, 8 examples per step, gradient checkpointing). 800 traces, none skipped for length.
+  200 of 200 steps done; loss 0.120 at the first logged step and 0.0031 at the last.
+- **Resume.** The run was resumed from step 22 (`resumed_from` 22) after the Google Drive sync stopped partway through the
+  first session and the later checkpoints were lost. This is a protocol event recorded for transparency, not a change to
+  the registered run: same config, same data order (a pure function of seed and step), same learning-rate schedule.
+- **Code between the two parts.** The Hub-mirroring and resume-from-Hub code (robust saving) was added after the first
+  part, and a fix for resuming from an empty Hub repo (commit 31fa584) was applied before the second part. None of this
+  touches the parser, verifier, gates, metrics or the training maths. `train_summary.json` records `git_commit`
+  31fa584afb534551d9d88d6287f7458f7c4ff4c3 with a clean tree; that is the commit of the second part (steps 23 to 200).
+  The commit of the first part (steps 1 to 22) is not recorded in the file.
+- **Packages.** torch 2.11.0+cu130, transformers 5.22.0, peft 0.21.2, accelerate 1.15.0, torchao 0.18.0 (as reported by
+  the user from the Colab run; `train_summary.json` does not store them). The notebook pin for transformers was moved from
+  5.20.2 to 5.22.0 to match.
+- The evaluation ran without `--greedy-only`: greedy once plus temperature 0.7 with seeds 0, 1, 2, as in Amendment 3.
+
+### What this does and does not show
+SFT taught the format completely (Gate A) and the model calls tools about ten times per episode, but its reward is not shown
+to be better than the no-tool plan (Gate B failed) and is statistically indistinguishable from the rule-based plan
+(Gate C). Only 24% of greedy episodes reach the optimum. These are results from one run, one seed, and 50 tasks; the
+confidence intervals are wide. Nothing here shows the model learned to use the tool outputs beyond what a simple plan achieves.
+
+**Next step: discuss before any RL.** This is not a pass, and no RL phase starts from it unprompted.
 
 ---
 

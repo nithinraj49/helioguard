@@ -1,0 +1,202 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B-Instruct+sft_1p5b",
+  "tasks": 50,
+  "complete": true,
+  "progress": {
+    "greedy": {
+      "episodes": 50,
+      "expected": 50
+    },
+    "t0.7_seed0": {
+      "episodes": 50,
+      "expected": 50
+    },
+    "t0.7_seed1": {
+      "episodes": 50,
+      "expected": 50
+    },
+    "t0.7_seed2": {
+      "episodes": 50,
+      "expected": 50
+    }
+  },
+  "greedy": {
+    "episodes": 50,
+    "tasks": 50,
+    "valid_submission_rate": {
+      "mean": 1.0,
+      "ci_low": 1.0,
+      "ci_high": 1.0
+    },
+    "mean_final_reward": {
+      "mean": 0.8246,
+      "ci_low": 0.717,
+      "ci_high": 0.9083
+    },
+    "percent_optimal": {
+      "mean": 0.24,
+      "ci_low": 0.12,
+      "ci_high": 0.36
+    },
+    "tool_calls_per_episode": {
+      "mean": 9.86,
+      "ci_low": 9.72,
+      "ci_high": 9.96
+    },
+    "failure_types": {},
+    "per_disruption": {
+      "forecast_error": {
+        "tasks": 25,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.905,
+        "percent_optimal": 0.28
+      },
+      "ground_outage": {
+        "tasks": 3,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.205,
+        "percent_optimal": 0.0
+      },
+      "launch_slip": {
+        "tasks": 11,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.799,
+        "percent_optimal": 0.091
+      },
+      "none": {
+        "tasks": 5,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.858,
+        "percent_optimal": 0.2
+      },
+      "storm_longer": {
+        "tasks": 20,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.785,
+        "percent_optimal": 0.25
+      },
+      "storm_stronger": {
+        "tasks": 17,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.839,
+        "percent_optimal": 0.235
+      },
+      "thruster_failure": {
+        "tasks": 15,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.785,
+        "percent_optimal": 0.2
+      }
+    }
+  },
+  "temperature_0.7_3_seeds": {
+    "episodes": 150,
+    "tasks": 50,
+    "valid_submission_rate": {
+      "mean": 1.0,
+      "ci_low": 1.0,
+      "ci_high": 1.0
+    },
+    "mean_final_reward": {
+      "mean": 0.636,
+      "ci_low": 0.5245,
+      "ci_high": 0.7387
+    },
+    "percent_optimal": {
+      "mean": 0.22,
+      "ci_low": 0.1267,
+      "ci_high": 0.32
+    },
+    "tool_calls_per_episode": {
+      "mean": 9.86,
+      "ci_low": 9.72,
+      "ci_high": 9.96
+    },
+    "failure_types": {},
+    "per_disruption": {
+      "forecast_error": {
+        "tasks": 25,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.602,
+        "percent_optimal": 0.227
+      },
+      "ground_outage": {
+        "tasks": 3,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": -0.022,
+        "percent_optimal": 0.0
+      },
+      "launch_slip": {
+        "tasks": 11,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.284,
+        "percent_optimal": 0.03
+      },
+      "none": {
+        "tasks": 5,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.844,
+        "percent_optimal": 0.2
+      },
+      "storm_longer": {
+        "tasks": 20,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.629,
+        "percent_optimal": 0.233
+      },
+      "storm_stronger": {
+        "tasks": 17,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.559,
+        "percent_optimal": 0.157
+      },
+      "thruster_failure": {
+        "tasks": 15,
+        "valid_submission_rate": 1.0,
+        "mean_final_reward": 0.657,
+        "percent_optimal": 0.178
+      }
+    }
+  },
+  "gates": {
+    "gate_A_format": {
+      "pass": true,
+      "valid_submission_rate": 1.0,
+      "needed": 0.9
+    },
+    "gate_B_value": {
+      "pass": false,
+      "ci_low": 0.717,
+      "needed_above": 0.743
+    },
+    "gate_C_honesty": "Gate C: mean final reward +0.825 (95% CI +0.717 to +0.908) is not distinguishable from the rule-based plan (+0.727): the SFT model only matches the rule-based plan."
+  },
+  "secondary": {
+    "greedy_paired_vs_no_tool_plan": {
+      "tasks": 50,
+      "mean_difference": 0.0819,
+      "ci_low": -0.0286,
+      "ci_high": 0.1692,
+      "ci_excludes_zero_above": false
+    },
+    "temperature_0.7_paired_vs_no_tool_plan": {
+      "tasks": 50,
+      "mean_difference": -0.1067,
+      "ci_low": -0.2195,
+      "ci_high": 0.0,
+      "ci_excludes_zero_above": false
+    },
+    "quiet_task_action_mix_greedy": {
+      "quiet_tasks": 5,
+      "model_actions": {
+        "safe_mode_edge_on": 12,
+        "raise_orbit": 5
+      },
+      "optimum_actions": {
+        "safe_mode_edge_on": 10,
+        "raise_orbit": 7
+      },
+      "tasks_with_a_submission": 5
+    }
+  }
+}
