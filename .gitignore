@@ -16,3 +16,6 @@ results/phase6/baselines_compact/
 
 # Phase 7 raw per-run caches (summaries and tables are committed)
 results/phase7/cache/
+
+# Phase 6 local-only run logs (never committed)
+results/phase6/local/
