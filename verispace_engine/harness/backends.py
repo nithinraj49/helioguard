@@ -50,7 +50,7 @@ class ScriptedBackend:
 
 class HFBackend:
     def __init__(self, model_id: str, device: str | None = None, dtype: str | None = None,
-                 adapter: str | None = None) -> None:
+                 adapter: str | None = None, base_adapter: str | None = None) -> None:
         try:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -61,7 +61,10 @@ class HFBackend:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(model_id, dtype=dtype or (torch.float32 if self.device == "cpu" else torch.float16)).to(self.device)
-        if adapter:                                  # a LoRA adapter folder from verispace_engine.sft
+        if base_adapter:                             # an adapter merged first (e.g. the SFT adapter under a GVPO adapter)
+            from peft import PeftModel
+            model = PeftModel.from_pretrained(model, base_adapter).merge_and_unload()
+        if adapter:                                  # a LoRA adapter folder from verispace_engine.sft / .gvpo
             from peft import PeftModel
             model = PeftModel.from_pretrained(model, adapter).merge_and_unload()
             self.name = f"{model_id}+{Path(adapter).parent.name}"

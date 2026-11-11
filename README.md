@@ -89,6 +89,17 @@ milliseconds; serial QAOA at 16 qubits took 9 s (360 simulator evaluations) agai
 
 Run: `python scripts/phase7_run.py run`, `python scripts/phase7_run.py timing`, `python scripts/phase7_report.py`. Raw per-run caches are git-ignored.
 
+## Phase 6, session 2 (set up, not yet run): GVPO design, pre-registration and implementation
+
+`docs/phase6_gvpo_gates.md` was committed before any GVPO code: arms (GVPO, GRPO baseline, GVPO outcome-only), the SFT adapter as
+starting point and reference, 3 seeds, 30 steps of 2 tasks x 8 attempts (about 23 T4 hours, an estimate), the greedy eval on the same 50
+tasks with paired bootstrap against SFT, and gates G0 to G5. It states that **no per-step reward covers the decision step**: the submit
+step's reward is the final reward, so the step+final versus outcome-only ablation can only test tool-call shaping and is expected to be null.
+Code: `verispace_engine/gvpo.py` (centred rewards, never divided by the group std; reference = adapter disabled over the merged SFT model;
+weights asserted to sum to zero; replay off; resumable, checkpoints verified and mirrored to the Hub), `verispace_engine/harness/group_rollout.py`
+(batched attempts, tested equal to `rollout_task`), `helioguard/gvpo_precheck.py` and `scripts/gvpo_precheck.py` (run on Colab before training),
+`helioguard/gvpo_gates.py`, `scripts/train_gvpo.py`. The 10-step CPU smoke test on the 0.5B model passes (45 min, base model without an SFT adapter; with the SFT-smoke adapter one step took 17 min because episodes run all 10 turns). No real training has been run; parser, verifier, environment, rewards and SFT gates are unchanged.
+
 ## Phase 6: robust saving (after a Colab Drive sync failure lost a run)
 
 Checkpoints and eval files are now mirrored to a private Hugging Face Hub repo (`verispace_engine/hub.py`), with a verified

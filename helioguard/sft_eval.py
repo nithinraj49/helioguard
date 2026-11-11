@@ -269,6 +269,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model", required=True)
     p.add_argument("--adapter", default=None)
+    p.add_argument("--base-adapter", default=None, help="adapter merged first (the SFT adapter when --adapter is a GVPO adapter)")
     p.add_argument("--n", type=int, default=50)
     p.add_argument("--out", default="results/phase6")
     p.add_argument("--tag", default="sft")
@@ -288,7 +289,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
             from verispace_engine.hub import HubSync
             hub = HubSync(a.hub_repo)
         from verispace_engine.harness.backends import HFBackend
-        summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter), a.n, out_dir=a.out, tag=a.tag,
+        summary = evaluate(HFBackend(a.model, device=a.device, adapter=a.adapter, base_adapter=a.base_adapter), a.n, out_dir=a.out, tag=a.tag,
                            greedy_only=a.greedy_only, hub=hub, upload_every=a.upload_every)
     print(json.dumps(summary["gates"], indent=2))
     return summary
