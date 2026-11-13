@@ -150,3 +150,20 @@ file, and mirrors every checkpoint to a private Hub repo with a verified listing
 ## 9. Outcome
 
 Not run yet.
+
+## 10. Clarifications (2026-11-13, before the precheck and any GVPO run; no gate changed)
+
+- **Reference model.** The SFT adapter is merged into the base weights and a fresh zero-initialised LoRA is trained on top, so the
+  reference policy (new adapter disabled) is the SFT model. Disabling the SFT adapter itself would give the base model, which cannot
+  produce the action format. The test that checks the log-ratio is 0 at step 0 is `tests/test_gvpo.py::test_reference_is_the_model_with_the_adapter_disabled` (it asserts that the fresh-adapter policy log-probability equals the reference to 1e-4, and that the reference does not move when the adapter is changed); the loop tests also assert `mean_log_ratio` is 0 at step 1.
+- **Budget.** 30 steps of 2 tasks x 8 attempts is 60 tasks per run. G2 to G5 may come out null because training is short, not because
+  GVPO cannot help; such a result is reported as "no demonstrated improvement", not as evidence against the method. This risk is
+  accepted before the precheck.
+- **Order of runs.** Arm A (3 seeds) first, then arm B, then arm C. Arm C is lowest priority and runs last; if units run out, it is
+  reported as not run. Arms A and B are not dropped to make room for C.
+- **Ablation.** No per-step reward covers the decision step (section 2), so A minus C is expected to be null and is not evidence
+  about process rewards.
+- **Precheck reporting.** The precheck also reports groups split by whether the task was in the SFT trace set or was one of the 200
+  dropped tasks. Descriptive only; G0 is unchanged.
+- **Expert optimality figure.** Section 1 states that the expert is optimal on 18 of 50 eval tasks. That figure has not been re-checked
+  against `docs/phase6_diagnosis.md`; where the two differ, the diagnosis document is authoritative. No gate depends on it.
